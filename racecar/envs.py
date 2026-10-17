@@ -13,6 +13,8 @@ Our fix (TwoSeedCarRacing):
       formula Gymnasium uses. Physics, rewards and time limit are unchanged.
 """
 
+import copy
+
 import cv2
 import gymnasium as gym
 import numpy as np
@@ -148,7 +150,58 @@ class ScheduledResets(gym.Wrapper):
         return self.env.reset(seed=track_seed, options={"color_seed": color_seed})
 
 
-def add_ai_view_wrappers(env, grayscale: bool, scheduled: bool = False):
+class ResumableEnv(gym.Wrapper):
+    """
+    For exact resumes of training (added after the 2026-10-17 interruption).
+    A Box2D world can't be saved to disk, but the simulator is deterministic, so its state is fully
+    described by (random-number state before the current race started, actions since then).
+    This wrapper only records those; it never changes what the simulator does.
+    get_resume_state() is saved with every checkpoint; set_resume_state() rebuilds the
+    simulator exactly by replaying the current race up to the checkpoint.
+    """
+
+    def __init__(self, env):
+        super().__init__(env)
+        self._race_start = None
+        self._actions = []
+
+    def reset(self, *, seed=None, options=None):
+        car = self.env.unwrapped
+        picker = car._color_seed_picker
+        self._race_start = {
+            "seed": seed,
+            "options": copy.deepcopy(options),
+            "track_rng": copy.deepcopy(car.np_random.bit_generator.state),
+            "color_picker_rng": None if picker is None else copy.deepcopy(picker.bit_generator.state),
+        }
+        self._actions = []
+        return self.env.reset(seed=seed, options=options)
+
+    def step(self, action):
+        self._actions.append(np.array(action, copy=True))
+        return self.env.step(action)
+
+    def get_resume_state(self):
+        return {"race_start": copy.deepcopy(self._race_start), "actions": [a.copy() for a in self._actions]}
+
+    def set_resume_state(self, state):
+        """Rebuild the simulator exactly; returns the last observation (to check against the saved one)."""
+        car = self.env.unwrapped
+        start = state["race_start"]
+        car.np_random.bit_generator.state = start["track_rng"]
+        if start["color_picker_rng"] is None:
+            car._color_seed_picker = None
+        else:
+            car._color_seed_picker = np.random.default_rng()
+            car._color_seed_picker.bit_generator.state = start["color_picker_rng"]
+        obs, _ = self.reset(seed=start["seed"], options=start["options"])
+        for action in state["actions"]:
+            obs, _, terminated, truncated, _ = self.step(action)
+            assert not (terminated or truncated), "replayed race ended early: resume would not be exact"
+        return obs
+
+
+def add_ai_view_wrappers(env, grayscale: bool, scheduled: bool = False, resumable: bool = False):
     """Frame skip -> shrink to 64x64 -> (optional) grayscale. Same order as the Zoo."""
     env = FrameSkip(env, config.FRAME_SKIP)
     env = ResizeObservation(env, (config.OBS_SIZE, config.OBS_SIZE))
@@ -156,6 +209,8 @@ def add_ai_view_wrappers(env, grayscale: bool, scheduled: bool = False):
         env = GrayscaleObservation(env, keep_dim=True)
     if scheduled:
         env = ScheduledResets(env)
+    if resumable:
+        env = ResumableEnv(env)   # outermost, so a replay passes through every wrapper (and Monitor) again
     return env
 
 

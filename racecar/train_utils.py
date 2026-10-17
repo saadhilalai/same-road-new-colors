@@ -34,7 +34,7 @@ def _sim_processes(n_envs, seed, color_mode, continuous, grayscale, scheduled):
         seed=seed,
         env_kwargs=dict(color_mode=color_mode, continuous=continuous),
         wrapper_class=add_ai_view_wrappers,
-        wrapper_kwargs=dict(grayscale=grayscale, scheduled=scheduled),
+        wrapper_kwargs=dict(grayscale=grayscale, scheduled=scheduled, resumable=not scheduled),
         monitor_kwargs=dict(info_keywords=MONITOR_KEYS),
         vec_env_cls=SubprocVecEnv,
     )
