@@ -1,0 +1,37 @@
+{
+  "gpu_free_gb_at_start": 10.84,
+  "A_one_simulator_frames_per_sec": 210.4,
+  "B_8_simulators_decisions_per_sec": 401.2,
+  "B_10_simulators_decisions_per_sec": 479.8,
+  "C_ppo_training": {
+    "continuous_color": {
+      "decisions_per_sec": 307.8,
+      "share_of_time_collecting_data": 0.83,
+      "share_of_time_learning_on_gpu": 0.17,
+      "peak_gpu_memory_gb": 0.07,
+      "hours_for_4M_decisions": 3.61
+    },
+    "continuous_gray": {
+      "decisions_per_sec": 319.0,
+      "share_of_time_collecting_data": 0.83,
+      "share_of_time_learning_on_gpu": 0.17,
+      "peak_gpu_memory_gb": 0.06,
+      "hours_for_4M_decisions": 3.48
+    },
+    "discrete_color": {
+      "decisions_per_sec": 311.3,
+      "share_of_time_collecting_data": 0.83,
+      "share_of_time_learning_on_gpu": 0.17,
+      "peak_gpu_memory_gb": 0.08,
+      "hours_for_4M_decisions": 3.57
+    },
+    "discrete_gray": {
+      "decisions_per_sec": 323.3,
+      "share_of_time_collecting_data": 0.83,
+      "share_of_time_learning_on_gpu": 0.17,
+      "peak_gpu_memory_gb": 0.06,
+      "hours_for_4M_decisions": 3.44
+    }
+  },
+  "D_eval_10_simulators_decisions_per_sec": 422.3
+}

@@ -1,0 +1,128 @@
+{
+  "1_random_car": {
+    "score": -31.0,
+    "frames": 1000,
+    "tiles_visited": 20,
+    "n_tiles": 290,
+    "track_covered_pct": 6.9,
+    "off_track": false,
+    "ended_by": "time limit"
+  },
+  "2_identical_to_official_env_with_normal_colors": true,
+  "3_4_colors": {
+    "track_unchanged_across_color_seeds": true,
+    "mean_pixel_change_vs_normal_0_to_255": [
+      49.1,
+      93.4,
+      68.6,
+      28.2,
+      91.2
+    ],
+    "color_values_road_bg_grass": {
+      "90000": [
+        [
+          130.4,
+          182.1,
+          197.1
+        ],
+        [
+          176.6,
+          190.2,
+          172.8
+        ],
+        [
+          176.6,
+          210.2,
+          172.8
+        ]
+      ],
+      "90001": [
+        [
+          4.7,
+          71.3,
+          149.7
+        ],
+        [
+          177.7,
+          18.5,
+          1.6
+        ],
+        [
+          177.7,
+          18.5,
+          21.6
+        ]
+      ],
+      "90002": [
+        [
+          51.5,
+          200.3,
+          73.5
+        ],
+        [
+          181.2,
+          46.6,
+          86.9
+        ],
+        [
+          181.2,
+          66.6,
+          86.9
+        ]
+      ],
+      "90003": [
+        [
+          104.2,
+          163.0,
+          78.1
+        ],
+        [
+          135.1,
+          181.1,
+          129.1
+        ],
+        [
+          155.1,
+          181.1,
+          129.1
+        ]
+      ],
+      "90004": [
+        [
+          56.5,
+          31.6,
+          5.7
+        ],
+        [
+          13.3,
+          22.1,
+          35.0
+        ],
+        [
+          13.3,
+          22.1,
+          55.0
+        ]
+      ]
+    },
+    "builtin_domain_randomize_changes_the_track": true
+  },
+  "5_deterministic": true,
+  "6_ai_view": {
+    "raw_obs_shape": [
+      96,
+      96,
+      3
+    ],
+    "processed_color_shape": [
+      64,
+      64,
+      3
+    ],
+    "processed_gray_shape": [
+      64,
+      64,
+      1
+    ]
+  }
+}
