@@ -1,0 +1,16 @@
+{
+  "score": -75.75,
+  "track_covered_pct": 4.9,
+  "lap_completed": 0.0,
+  "seconds": 7.97,
+  "mean_speed": 30.22,
+  "pct_time_all_wheels_on_grass": 60.16,
+  "mean_abs_steer_change": 0.0,
+  "steer_direction_flips_per_sec": 0.0,
+  "pct_decisions_braking": 0.0,
+  "pct_decisions_full_gas": 0.0,
+  "pct_decisions_gas_and_brake": 0.0,
+  "pct_frames_moving_backwards_along_track": 0.76,
+  "possible_shortcuts": 0.4,
+  "replays_matching_recorded_results": "100/100"
+}

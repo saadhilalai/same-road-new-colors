@@ -13,3 +13,6 @@ logs/
 *.swp
 .DS_Store
 Thumbs.db
+
+# Driving-check videos (regenerable from recorded actions; final videos are chosen in Step 7)
+results/driving/*/videos/

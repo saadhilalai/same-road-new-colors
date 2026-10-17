@@ -84,6 +84,9 @@ TRAIN_COLOR_SEED_RANGE = (1_000_000, 2_000_000)
 # ...and every evaluation uses color seeds below 1,000,000, so by construction
 # no agent has ever trained on an evaluation color scheme.
 COLOR_STREAM_ID = 7   # mixed into the color seed so color numbers never reuse the track's random stream
+# Evaluation with unseen colors: race on track T uses color seed T (same number, separate random stream,
+# so the colors have nothing to do with the track's shape). Validation colors 5000-5099, analysis colors
+# 20000-20099, test colors 10000-10099: all below 1,000,000, so never seen in training.
 
 # ---------------------------------------------------------------------------
 # Training settings: RL Baselines3 Zoo, rl_zoo3 v2.9.1, hyperparams/ppo.yml, "CarRacing-v3"
