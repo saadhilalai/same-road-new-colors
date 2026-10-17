@@ -128,3 +128,53 @@ training tracks as the pilot, so the only difference between the runs is the one
 
 Small honesty note: picking the recipe with seed 42's validation result and then also reporting seed 42 is a
 mild selection effect on validation tracks only; seeds 142/242 and the hidden test tracks are not affected.
+
+### Interruption: Windows Update restart (2026-10-17, 01:59)
+**What happened.** Windows Update restarted the PC at 01:59:29 (Windows event log: event 1074 from
+`MoUsoCoreWorker.exe`, "Operating System: Service pack (Planned)", then a clean shutdown; "the last shutdown's
+success status was true"). A second update restart followed at 02:02. It was **not** heat or a power problem.
+Windows "active hours" are set to 11:00-01:00, so Windows restarts for updates right after 1 AM.
+WSL only came back when the director logged in at 12:56, so about 11 hours of machine time were lost.
+(Also in the event log: one NVIDIA driver message, event 13 "Graphics FECS Exception: Logging error 0x2", at 23:23
+the evening before. Nothing was affected: the pilot kept training and every evaluation and replay matched.)
+
+**Where the runs stopped.** All files were intact (every checkpoint zip and pickle loads; no half-written CSV rows).
+
+| Run | Last logged | Last checkpoint | Training lost |
+|---|---|---|---|
+| `A_seed42_entropy` | 625,808 decisions | 503,808 | ~14 min |
+| `A_seed42_kl_limit` | 736,856 decisions | 503,808 | ~22 min |
+| `A_seed42` (Zoo pilot) | paused on purpose earlier | 2,752,512 | none |
+
+Both 503,808 checkpoints were re-validated on their 20 validation tracks: identical to the logged scores, race by race.
+
+**Why not simply resume from 503,808.** Those checkpoints held the AI's weights, its optimizer and the reward
+scaler, but not the random-number generators or the 8 simulators' half-finished races. A resume would have been
+statistically fine but not identical to an uninterrupted run. A test showed that training on this PC *is*
+bit-for-bit repeatable from the seed (two identical 8,192-decision runs: 0 of 33 weight tensors differ), so the
+director chose **replaying both trials from the start** (about 1 extra hour), which gives exactly the
+uninterrupted result. The interrupted folders are kept in `runs/_archive/` (not in git).
+
+**Upgrade: exact resumes from now on** (`scripts/train.py`, `racecar/envs.py: ResumableEnv`).
+- Every checkpoint also saves `runstate_<decisions>.pkl`: all random-number states (Python, NumPy, PyTorch CPU and
+  GPU), each simulator's current race (its random state when the race began + every action since), the
+  2-frame stack, the reward scaler's running returns, and the AI's last image.
+- Resuming rebuilds each simulator by replaying its race and checks it against the saved image.
+- Every checkpoint file is written atomically (temp file, then rename), so a power cut can't leave half a file;
+  a checkpoint only counts once its run state (written last) exists.
+- **Test:** a run hard-killed (`kill -9`) in the middle of a rollout and then resumed was compared with the same run
+  left alone: weights, optimizer, all 48 training races and all validation races **identical**. Same result for
+  agent B (random colors).
+- Bug found by that test and fixed: the AI's last image has to be restored as the same "transposed view" the
+  wrappers produce. A tidy copy has a different memory layout, the GPU then picks a different (equally correct)
+  calculation method, and the results differ in the 5th decimal (measured 2.7e-5). That is enough for RL training
+  to drift apart within one update.
+- `scripts/log_resources.sh` now lives in the repo (the old copy was in /tmp and was wiped by the restart).
+
+**Replay check (to be filled in):** each replayed trial must reproduce its interrupted original exactly:
+checkpoints 0, 253,952 and 503,808 (weights + optimizer) and every training race up to the original's last logged
+decision.
+
+**Advice for the director:** to avoid this during long runs, pause Windows updates (Settings > Windows Update >
+Pause updates) or widen active hours. An interruption now costs at most the ~25 min since the last checkpoint,
+but nothing restarts by itself until someone logs in.
