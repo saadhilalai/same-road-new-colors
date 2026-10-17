@@ -57,3 +57,45 @@ and lock-step stepping costs about another 30%.
 ### Decisions needed before Step 2
 1. AI input: color (recommended) or grayscale (Zoo default).
 2. "Lap completed": your strict 100%-of-tiles rule vs Gymnasium's built-in rule (>95% of tiles + crossing the start line).
+
+## Step 2: First driver (in progress)
+
+### Decisions (from the director)
+- AI input: color. Controls: continuous (steer, gas, brake), as in the Zoo recipe.
+- "Lap completed" = strict 100% of tiles; Gymnasium's own rule is reported as an extra column (`lap_finished_gym`).
+- The agent is each run's **final** copy (after all 4M decisions), for A and B alike (`config.AGENT_CHECKPOINT`).
+- If seed 42 doesn't drive well: show what went wrong before changing anything; fix using validation tracks only.
+
+### Pilot run: Agent A, seed 42, Zoo recipe unchanged (started 2026-10-16 21:32)
+Learned fast, then got worse. Validation = 20 validation tracks at each checkpoint (`runs/A_seed42/validation.csv`).
+
+| Decisions | Validation mean score | Track covered | Laps | Off track |
+|---|---|---|---|---|
+| 0 | -70.0 | 5.3% | 0% | 80% |
+| 254k | 674.7 | 77.5% | 0% | 0% |
+| 504k | 742.7 | 85.0% | 15% | 10% |
+| 754k | 738.2 | 84.4% | 20% | 10% |
+| 1.00M | 556.7 | 68.6% | 0% | 35% |
+| 1.25M | 388.2 | 52.1% | 0% | 45% |
+
+Checked on all 100 validation tracks (`results/evals/A_seed42/validation_normal_ckpt*.csv`), every race replayed exactly (100/100):
+
+| Checkpoint | Mean score | Covered | Laps (strict) | Off track | Ran out of time | All wheels on grass |
+|---|---|---|---|---|---|---|
+| 504k (best so far) | 772.8 +/- 184.3 | 87.4% | 18% | 4% | 78% | 9.5% of the time |
+| 1.25M | 348.5 +/- 191.7 | 47.6% | 0% | 40% | 60% | 46.2% of the time |
+
+What the driving looks like (`results/driving/A_seed42_validation_normal_ckpt*/`):
+- **504k:** smooth, stays on the road, no tricks seen (no shortcuts, almost no driving backwards). **Slow:** average gas 0.16 of max,
+  never full gas. 50 of 100 races ran out of time with 90%+ of the track already covered.
+  Worst race: misses a sharp hairpin, drives straight across the grass and off the map without trying to come back.
+- **1.25M:** the same failure, much more often. It steers less (average |steer| 0.049 vs 0.078) and goes straight
+  at corners; once the road is out of view it drives straight until it leaves the playing area.
+
+Training health (`results/step2/A_seed42_training_health.png`, from TensorBoard):
+- The exploration noise ("std", how much random trying is left in its actions) fell steadily: 0.135 at the start, 0.017 at 1.4M.
+- How much each training round changed the driver ("approx KL") rose from about 0.05 to about 0.85.
+  Spinning Up's PPO notes call 0.01-0.05 the usual size. About 75% of training samples hit PPO's clip limit.
+- Likely reason (not yet tested): the exploration noise collapses (nothing in the recipe keeps it up: ent_coef = 0),
+  so each update becomes erratic and the driver drifts into under-steering. The Zoo's published result for this
+  recipe (175 +/- 100, CarRacing-v0, one run) fits the same picture, but that is also untested.

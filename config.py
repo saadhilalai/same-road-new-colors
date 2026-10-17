@@ -130,3 +130,4 @@ CHECKPOINT_EVERY = 250_000                       # save + validate every 250k de
 VALIDATION_DURING_TRAINING = VALIDATION_TRACKS[:20]   # 20 tracks, normal colors
 EVAL_N_ENVS = 8                                  # simulators used for evaluation (training sims sit idle meanwhile)
 PILOT_PASS_SCORE = 800                           # seed 42 must average this on all 100 validation tracks
+AGENT_CHECKPOINT = "final"                       # DECIDED: each run's final copy is the agent (A and B alike); no picking
