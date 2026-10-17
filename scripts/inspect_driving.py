@@ -6,7 +6,7 @@ How does the AI actually drive? Replays recorded races (exactly) and measures dr
 For every race: speed, time on grass, steering smoothness, wobble, braking, direction, possible shortcuts.
 For 5 races (best, median, worst score + 2 more): MP4 video, contact sheet (frames every 0.4 s),
 and a top-down map of the car's path coloured by speed. Every replay is checked against its recorded result.
-Outputs go to results/driving/<agent>_seed<seed>_<tracks>_<colors>/.
+Outputs go to results/driving/<run name>_<tracks>_<colors>/ (run name: see config.run_name).
 """
 
 import argparse
@@ -120,12 +120,14 @@ def main():
     p.add_argument("--colors", default="normal")
     p.add_argument("--checkpoint", default="final")
     p.add_argument("--workers", type=int, default=6)
+    p.add_argument("--recipe", choices=sorted(config.RECIPE_FIXES), default=config.RECIPE)
     args = p.parse_args()
+    run_name = config.run_name(args.agent, args.seed, args.recipe)
 
     name = f"{args.tracks}_{args.colors}" + ("" if args.checkpoint == "final" else f"_ckpt{args.checkpoint}")
-    races = pd.read_csv(config.RESULTS_DIR / "evals" / f"{args.agent}_seed{args.seed}" / f"{name}.csv")
-    acts = np.load(config.RUNS_DIR / f"{args.agent}_seed{args.seed}" / "actions" / f"{name}.npz")
-    out = config.RESULTS_DIR / "driving" / f"{args.agent}_seed{args.seed}_{name}"
+    races = pd.read_csv(config.RESULTS_DIR / "evals" / run_name / f"{name}.csv")
+    acts = np.load(config.RUNS_DIR / run_name / "actions" / f"{name}.npz")
+    out = config.RESULTS_DIR / "driving" / f"{run_name}_{name}"
     (out / "videos").mkdir(parents=True, exist_ok=True)
 
     jobs = [(r, acts[f"{r['track_seed']}_{r['color_seed']}"]) for r in races.to_dict("records")]
@@ -147,7 +149,7 @@ def main():
         tag = f"{label}_track{row['track_seed']}_score{row['score']:.0f}"
         imageio.mimsave(out / "videos" / f"{tag}.mp4", rep["frames"], fps=50, macro_block_size=1,
                         ffmpeg_params=["-crf", "18", "-preset", "slow"])
-        title = (f"{args.agent} seed {args.seed}, {label}: track {row['track_seed']}, score {row['score']:.1f}, "
+        title = (f"{args.agent} seed {args.seed} ({args.recipe}), {label}: track {row['track_seed']}, score {row['score']:.1f}, "
                  f"covered {row['track_covered_pct']:.1f}%")
         contact_sheet(rep["frames"], title, out / f"{tag}_frames.png")
         path_map(rep, title, out / f"{tag}_path.png")

@@ -1,9 +1,9 @@
 """
 Train one agent (A or B) with one seed. Safe to stop and restart: it resumes from the last checkpoint.
 
-    python -m scripts.train --agent A --seed 42
+    python -m scripts.train --agent A --seed 42 [--recipe entropy]
 
-Writes to runs/<agent>_seed<seed>/:
+Writes to runs/<run name>/ (see config.run_name: e.g. A_seed42 for the Zoo recipe, A_seed42_entropy for a fix):
     run_info.json          settings, versions, git commit, timing, status
     train_episodes.csv     every training race (score, track covered, ...) = learning curve
     validation.csv         validation races at every checkpoint (normal colors, 20 tracks)
@@ -151,12 +151,17 @@ def main():
     p.add_argument("--total-timesteps", type=int, default=config.TOTAL_TIMESTEPS)
     p.add_argument("--checkpoint-every", type=int, default=config.CHECKPOINT_EVERY)
     p.add_argument("--val-tracks", type=int, default=len(config.VALIDATION_DURING_TRAINING))
-    p.add_argument("--run-dir", default=None, help="default: runs/<agent>_seed<seed> (other folders are for tests)")
+    p.add_argument("--recipe", choices=sorted(config.RECIPE_FIXES), default=config.RECIPE)
+    p.add_argument("--run-dir", default=None, help="default: runs/<run name> (other folders are for tests)")
     args = p.parse_args()
 
     torch.set_num_threads(config.TORCH_CPU_THREADS)
-    run_dir = config.RUNS_DIR / f"{args.agent}_seed{args.seed}" if args.run_dir is None else config.PROJECT_ROOT / args.run_dir
+    run_name = config.run_name(args.agent, args.seed, args.recipe)
+    run_dir = config.RUNS_DIR / run_name if args.run_dir is None else config.PROJECT_ROOT / args.run_dir
     run = Run(args.agent, args.seed, args.total_timesteps, args.checkpoint_every, args.val_tracks, run_dir)
+    if run.info and run.info.get("recipe", "zoo") != args.recipe:
+        log(f"STOP: {run_dir.name} was trained with recipe '{run.info.get('recipe', 'zoo')}', not '{args.recipe}'.")
+        sys.exit(2)
     if run.info and run.info["status"] == "complete":
         log(f"{run_dir.name} is already complete. Nothing to do.")
         return
@@ -180,6 +185,8 @@ def main():
             "checkpoint_every": args.checkpoint_every,
             "validation_tracks_during_training": run.val_tracks,
             "hyperparameters_source": "rl_zoo3 2.9.1 hyperparams/ppo.yml, CarRacing-v3 (grayscale switched off: see config.py)",
+            "recipe": args.recipe,
+            "recipe_change_from_zoo": config.RECIPE_FIXES[args.recipe],
             "status": "running",
             "timesteps_done": 0,
             "sessions": [],
@@ -218,9 +225,11 @@ def main():
     else:
         if ckpt_path is None:
             log(f"Starting {run_dir.name}: agent {args.agent} ({agent_cfg['description']}), seed {args.seed}, "
-                f"{args.total_timesteps:,} decisions. GPU free: {free_gb:.2f} GB.")
+                f"recipe '{args.recipe}' {config.RECIPE_FIXES[args.recipe]}, {args.total_timesteps:,} decisions. "
+                f"GPU free: {free_gb:.2f} GB.")
             venv = build_vec_env(config.N_ENVS, env_seed, agent_cfg["color_mode"], config.CONTINUOUS_ACTIONS, config.GRAYSCALE)
-            model = build_ppo(venv, args.seed, config.CONTINUOUS_ACTIONS, tensorboard_log=str(run_dir / "tb"))
+            model = build_ppo(venv, args.seed, config.CONTINUOUS_ACTIONS, tensorboard_log=str(run_dir / "tb"),
+                              recipe=args.recipe)
             start_ts = 0
         else:
             log(f"RESUMING {run_dir.name} from checkpoint at {start_ts:,} decisions (session {session_idx}).")

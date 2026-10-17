@@ -115,6 +115,23 @@ POLICY_KWARGS = dict(
 )
 CONTINUOUS_ONLY_POLICY_KWARGS = dict(log_std_init=-2)
 
+# Recipe fixes (Step 2). The Zoo recipe collapsed in the seed-42 pilot (PROGRESS.md, Step 2): its exploration
+# noise shrank to almost nothing and the driving got worse. Each fix changes exactly ONE PPO setting.
+# Both were tried on seed 42 side by side; the winner was picked on validation tracks only.
+RECIPE_FIXES = {
+    "zoo": {},                                   # the Zoo recipe unchanged (the paused pilot)
+    "entropy": dict(ent_coef=0.01),              # entropy bonus: a small reward for keeping some randomness
+    "kl_limit": dict(target_kl=0.05),            # end a training round early once the driver has changed too much
+}
+RECIPE = "zoo"                                   # the recipe every agent uses; set to the trial winner below
+RECIPE_TRIAL_MIN_SCORE = 500                     # if neither fix's final model reaches this on validation: stop
+
+
+def run_name(agent, seed, recipe=None):
+    """Folder name of one training run. The Zoo recipe has no suffix (the pilot); a fix adds its name."""
+    recipe = RECIPE if recipe is None else recipe
+    return f"{agent}_seed{seed}" + ("" if recipe == "zoo" else f"_{recipe}")
+
 # ---------------------------------------------------------------------------
 # Agents
 # ---------------------------------------------------------------------------

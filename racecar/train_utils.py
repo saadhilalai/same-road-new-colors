@@ -68,13 +68,14 @@ def linear_schedule(initial_value):
     return schedule
 
 
-def build_ppo(venv, seed, continuous, tensorboard_log=None):
+def build_ppo(venv, seed, continuous, tensorboard_log=None, recipe="zoo"):
     policy_kwargs = dict(config.POLICY_KWARGS)
     policy_kwargs["activation_fn"] = getattr(torch.nn, policy_kwargs["activation_fn"])
-    extra = {}
+    params = dict(config.PPO_PARAMS)
     if continuous:
         policy_kwargs.update(config.CONTINUOUS_ONLY_POLICY_KWARGS)
-        extra = dict(config.CONTINUOUS_ONLY_PARAMS)
+        params.update(config.CONTINUOUS_ONLY_PARAMS)
+    params.update(config.RECIPE_FIXES[recipe])     # the one setting a recipe fix changes
     return PPO(
         "CnnPolicy",
         venv,
@@ -84,6 +85,5 @@ def build_ppo(venv, seed, continuous, tensorboard_log=None):
         device=config.DEVICE,
         tensorboard_log=tensorboard_log,
         verbose=0,
-        **config.PPO_PARAMS,
-        **extra,
+        **params,
     )

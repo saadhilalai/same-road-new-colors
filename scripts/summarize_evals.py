@@ -19,11 +19,12 @@ def main():
     p.add_argument("--agent", required=True)
     p.add_argument("--name", required=True, help="e.g. analysis_normal, validation_normal")
     p.add_argument("--out", default=None)
+    p.add_argument("--recipe", choices=sorted(config.RECIPE_FIXES), default=config.RECIPE)
     args = p.parse_args()
 
     rows = []
     for seed in config.TRAINING_SEEDS:
-        path = config.RESULTS_DIR / "evals" / f"{args.agent}_seed{seed}" / f"{args.name}.csv"
+        path = config.RESULTS_DIR / "evals" / config.run_name(args.agent, seed, args.recipe) / f"{args.name}.csv"
         if path.exists():
             rows.append({"seed": seed, **summarize(pd.read_csv(path))})
     table = pd.DataFrame(rows)
@@ -35,7 +36,7 @@ def main():
     print(md)
     if args.out:
         with open(args.out, "w") as f:
-            f.write(f"Agent {args.agent}, {args.name}\n\n{md}\n")
+            f.write(f"Agent {args.agent} (recipe '{args.recipe}'), {args.name}\n\n{md}\n")
 
 
 if __name__ == "__main__":

@@ -22,8 +22,8 @@ import matplotlib.pyplot as plt
 SEED_STYLES = {42: "-", 142: "--", 242: ":"}
 
 
-def load(agent, seed, name):
-    path = config.RUNS_DIR / f"{agent}_seed{seed}" / name
+def load(agent, seed, name, recipe=None):
+    path = config.RUNS_DIR / config.run_name(agent, seed, recipe) / name
     return pd.read_csv(path) if path.exists() else None
 
 

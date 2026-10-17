@@ -99,3 +99,32 @@ Training health (`results/step2/A_seed42_training_health.png`, from TensorBoard)
 - Likely reason (not yet tested): the exploration noise collapses (nothing in the recipe keeps it up: ent_coef = 0),
   so each update becomes erratic and the driver drifts into under-steering. The Zoo's published result for this
   recipe (175 +/- 100, CarRacing-v0, one run) fits the same picture, but that is also untested.
+
+### Director's decision (2026-10-17, ~00:40): option A, test two fixes side by side
+The pilot was paused at 2.85M decisions (resumable; last checkpoint 2,752,512). It had not recovered:
+validation (20 tracks) at 1.5M-2.75M stayed between 247 and 369. Pilot status in `runs/A_seed42/run_info.json`: "paused".
+
+Two new seed-42 runs, trained at the same time, each the Zoo recipe with exactly ONE change (`config.RECIPE_FIXES`):
+
+| Recipe | Change | Plain English | Run folder |
+|---|---|---|---|
+| `entropy` | `ent_coef` 0.0 -> 0.01 | a small reward for keeping some randomness, so exploration can't collapse to zero | `runs/A_seed42_entropy` |
+| `kl_limit` | `target_kl` None -> 0.05 | each training round stops early once the driver has changed too much (SB3 stops at 1.5 x 0.05) | `runs/A_seed42_kl_limit` |
+
+Why these values: 0.01 is the most common PPO entropy setting; 0.05 is the upper end of the "usual" KL range
+in OpenAI Spinning Up's PPO notes ("usually small, 0.01 or 0.05"). Neither was tuned. Same seed (42) and same
+training tracks as the pilot, so the only difference between the runs is the one setting.
+
+**Selection rule (written down before any result):**
+1. Each trial's agent = its final copy (after 4M decisions), as decided.
+2. Evaluate both final copies on all 100 validation tracks, normal colors. Test tracks are not touched.
+3. Winner = higher mean validation score. A paired test across the 100 tracks (Wilcoxon signed-rank) is
+   reported too; if it is not significant, the pick is still the higher mean, and that is said plainly.
+4. The winning recipe becomes `config.RECIPE` for A and for B (Step 3); its seed-42 run counts as A seed 42.
+   Seeds 142 and 242 then train together with it, without waiting for the director.
+5. Stop and wait for the director only if something is truly broken: a run crashes and can't resume, or
+   neither fix's final copy reaches a validation mean of 500 (`config.RECIPE_TRIAL_MIN_SCORE`), i.e. both
+   still collapse. Nothing else changes (for example the car's slowness is reported, not fixed).
+
+Small honesty note: picking the recipe with seed 42's validation result and then also reporting seed 42 is a
+mild selection effect on validation tracks only; seeds 142/242 and the hidden test tracks are not affected.
