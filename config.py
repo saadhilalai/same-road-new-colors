@@ -19,7 +19,9 @@ RESULTS_DIR = PROJECT_ROOT / "results"    # small outputs we keep in git
 # Hardware limits (ground rules 3 and 4)
 # ---------------------------------------------------------------------------
 DEVICE = "cuda"               # train on the RTX 3080
-MAX_SIM_PROCESSES = 10        # at most 10 simulators running at once
+MAX_SIM_PROCESSES = 10        # at most 10 simulators in one training/evaluation
+CPU_THREAD_BUDGET = 20        # updated in Step 2: user allows 20 threads in total
+MAX_PARALLEL_TRAININGS = 2    # updated in Step 2: two trainings at once, if memory and speed checks pass
 MIN_FREE_GPU_GB = 2.0         # refuse to start training with less free GPU memory
 TORCH_CPU_THREADS = 2         # keep PyTorch from grabbing every CPU thread
 
@@ -41,13 +43,22 @@ NORMAL_GRASS_COLOR = (102, 230, 102)
 # ---------------------------------------------------------------------------
 FRAME_SKIP = 2          # the AI decides every 2nd frame; the action is repeated in between
 OBS_SIZE = 64           # shrink the 96x96 image to 64x64
-GRAYSCALE = None        # DECISION PENDING (end of Step 1): True = grayscale (Zoo), False = keep color
+GRAYSCALE = False       # DECIDED (Step 1): keep color. The Zoo uses grayscale; we don't, because the experiment is about colors
 FRAME_STACK = 2         # the AI sees its last 2 images, so it can tell speed and direction
 
 # ---------------------------------------------------------------------------
 # What the AI controls
 # ---------------------------------------------------------------------------
-CONTINUOUS_ACTIONS = None   # DECISION PENDING (Step 2): True = smooth steer/gas/brake, False = 5 buttons
+CONTINUOUS_ACTIONS = True   # DECIDED (Step 2): smooth steer/gas/brake (matches the Zoo; 5-button gas is capped at 20%)
+
+# ---------------------------------------------------------------------------
+# Metrics (definitions from the project brief)
+# ---------------------------------------------------------------------------
+# score            = official Gymnasium reward, summed over the episode
+# track_covered    = % of track tiles the car drove over
+# lap_completed    = covered EVERY tile before time ran out (strict 100% rule, DECIDED Step 1)
+# lap_finished_gym = extra column: Gymnasium's own rule (>95% of tiles + touching the start tile)
+# off_track        = left the playing area (episode ends, -100)
 
 # ---------------------------------------------------------------------------
 # Seeds
@@ -56,9 +67,15 @@ TRAINING_SEEDS = [42, 142, 242]           # 3 seeds for every agent
 
 # Track seeds (which race track gets generated). Kept strictly separate.
 VALIDATION_TRACKS = list(range(5000, 5100))     # during training + picking settings
-ANALYSIS_TRACK_START = 20000                    # comparisons along the way (20000, 20001, ...)
+ANALYSIS_TRACK_START = 20000                    # comparisons along the way
+ANALYSIS_TRACKS = list(range(20000, 20100))     # 100 analysis tracks
 TEST_TRACKS = list(range(10000, 10100))         # HIDDEN: used exactly once, in Step 6
 SCRATCH_TRACK_START = 90000                     # smoke tests and demos only
+FILLER_TRACK = 99999                            # evaluation simulators with no work left drive here (ignored)
+
+# Training simulators get their own track seeds: run seed + simulator number (42..49, 142..149, 242..249).
+# If a run is resumed, the restarted simulators get seeds far away from every evaluation range.
+RESUME_ENV_SEED_BASE = 3_000_000
 
 # Color seeds (which random color scheme gets used).
 # Colors come from their own random-number stream, separate from the track.
@@ -94,3 +111,19 @@ POLICY_KWARGS = dict(
     net_arch=dict(pi=[256], vf=[256]),
 )
 CONTINUOUS_ONLY_POLICY_KWARGS = dict(log_std_init=-2)
+
+# ---------------------------------------------------------------------------
+# Agents
+# ---------------------------------------------------------------------------
+AGENTS = {
+    "A": dict(color_mode="normal", description="trained on normal colors only"),
+    "B": dict(color_mode="random", description="trained with random colors every episode (domain randomization)"),
+}
+
+# ---------------------------------------------------------------------------
+# Checkpoints and checks during training
+# ---------------------------------------------------------------------------
+CHECKPOINT_EVERY = 250_000                       # save + validate every 250k decisions (and at 0 and the end)
+VALIDATION_DURING_TRAINING = VALIDATION_TRACKS[:20]   # 20 tracks, normal colors
+EVAL_N_ENVS = 8                                  # simulators used for evaluation (training sims sit idle meanwhile)
+PILOT_PASS_SCORE = 800                           # seed 42 must average this on all 100 validation tracks

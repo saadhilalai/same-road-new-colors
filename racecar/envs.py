@@ -50,6 +50,7 @@ class TwoSeedCarRacing(CarRacing):
         super().__init__(domain_randomize=False, **kwargs)   # built-in randomizer always off
         self.color_mode = color_mode
         self.color_seed = None
+        self.track_seed = None
         self._color_seed_picker = None
 
     def _apply_colors(self, color_seed):
@@ -78,6 +79,7 @@ class TwoSeedCarRacing(CarRacing):
         # Colors must be set BEFORE the track is built, because road tiles copy
         # the road color when they are created.
         self._apply_colors(self.color_seed)
+        self.track_seed = seed   # None after the first training episode: the track then comes from the running random stream
         obs, info = super().reset(seed=seed)
         info.update(self._progress_info(off_track=False))
         return obs, info
@@ -96,6 +98,7 @@ class TwoSeedCarRacing(CarRacing):
             "off_track": off_track,
             "lap_finished_gym": bool(self.new_lap or self.tile_visited_count == len(self.track)),
             "color_seed": -1 if self.color_seed is None else int(self.color_seed),
+            "track_seed": -1 if self.track_seed is None else int(self.track_seed),
         }
 
 
@@ -124,12 +127,35 @@ class FrameSkip(gym.Wrapper):
         return obs, total_reward, terminated, truncated, info
 
 
-def add_ai_view_wrappers(env, grayscale: bool):
+class ScheduledResets(gym.Wrapper):
+    """
+    For evaluation: every reset plays the next (track seed, color seed) from a list.
+    When the list is used up, the simulator keeps driving a filler track whose results are ignored.
+    """
+
+    def __init__(self, env):
+        super().__init__(env)
+        self.schedule = []
+
+    def set_schedule(self, episodes):
+        self.schedule = list(episodes)
+
+    def reset(self, *, seed=None, options=None):
+        if self.schedule:
+            track_seed, color_seed = self.schedule.pop(0)
+        else:
+            track_seed, color_seed = config.FILLER_TRACK, None
+        return self.env.reset(seed=track_seed, options={"color_seed": color_seed})
+
+
+def add_ai_view_wrappers(env, grayscale: bool, scheduled: bool = False):
     """Frame skip -> shrink to 64x64 -> (optional) grayscale. Same order as the Zoo."""
     env = FrameSkip(env, config.FRAME_SKIP)
     env = ResizeObservation(env, (config.OBS_SIZE, config.OBS_SIZE))
     if grayscale:
         env = GrayscaleObservation(env, keep_dim=True)
+    if scheduled:
+        env = ScheduledResets(env)
     return env
 
 
