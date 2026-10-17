@@ -171,9 +171,14 @@ uninterrupted result. The interrupted folders are kept in `runs/_archive/` (not 
   to drift apart within one update.
 - `scripts/log_resources.sh` now lives in the repo (the old copy was in /tmp and was wiped by the restart).
 
-**Replay check (to be filled in):** each replayed trial must reproduce its interrupted original exactly:
-checkpoints 0, 253,952 and 503,808 (weights + optimizer) and every training race up to the original's last logged
-decision.
+**Replay check: passed (2026-10-17 16:18).** Each replayed trial reproduced its interrupted original exactly:
+
+| Trial | Checkpoints compared (weights + optimizer) | Training races compared | Validation races | Result |
+|---|---|---|---|---|
+| `entropy` | 0, 253,952, 503,808: 0 of 33 tensors differ | 1,310 (up to 625,808 decisions) | 60 | identical |
+| `kl_limit` | 0, 253,952, 503,808: 0 of 33 tensors differ | 1,559 (up to 736,856 decisions) | 60 | identical |
+
+So the trial results are exactly what they would have been without the restart.
 
 **Advice for the director:** to avoid this during long runs, pause Windows updates (Settings > Windows Update >
 Pause updates) or widen active hours. An interruption now costs at most the ~25 min since the last checkpoint,
