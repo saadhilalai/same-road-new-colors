@@ -319,7 +319,7 @@ seed 242 50-67%, and seed 142 only 22-25%. Seeds 142 and 242 never leave the pla
 full 1,000 frames: they creep along the road. Seed 142's final copy: 169.6 on the 100 validation tracks, 152.3 on the
 100 analysis tracks.
 
-## Plan: fixing the slow driving (written 2026-10-18 02:50; NOT started, needs the director's go)
+## Plan: fixing the slow driving (written 2026-10-18 02:35; NOT started, needs the director's go)
 
 **What we know** (sections above): all three seeds settle on driving slowly and steadily. Seed 42 cruises at
 almost exactly the speed a lap needs and runs out of time; seeds 142 and 242 creep (seed 142: average speed 13
