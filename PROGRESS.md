@@ -3,7 +3,7 @@
 Race-car AI that learns to drive from pixels only (Gymnasium CarRacing-v3, PPO),
 testing whether domain randomization (random colors in training) makes it robust to unseen colors.
 
-## Morning summary (night of 2026-10-17/18; written 05:30, updated 17:50)
+## Morning summary (night of 2026-10-17/18; written 05:30, updated 18:05)
 
 **Finished overnight**
 - **Step 2 is done** (details in "Step 2 results" below). Agent A, recipe `entropy`, final copies, normal colors:
@@ -44,6 +44,8 @@ testing whether domain randomization (random colors in training) makes it robust
   1,753,088 checkpoint and restarts by itself once memory allows.
 - **15:52: B42 restarted** after the director cleared WSL's cache and paused another app. **17:49: B42 finished;
   final 20-track check -20.0** (it never learned). Next in the queue: B42's evaluation, then B142 and B242.
+- **18:03: B42 evaluated** on the 100 analysis tracks: **normal colors -22.0, unseen colors -10.5** (A42: 780.7 and
+  89.7). It covers 8-9% of the track either way, no laps. No test yet: the plan tests the mean of 3 seeds.
 - One job at a time: with the PC's other apps open, Windows had only 2.3-6 GB of memory available. Your 3 GB rule
   stopped my work three times: I stopped seed 242's training by hand at 23:15 (resumed exactly at 02:00), and the memory
   guard (`scripts/memory_guard.py`) stopped an evaluation at 05:07 and B42 at 07:06. All my jobs run at low CPU
