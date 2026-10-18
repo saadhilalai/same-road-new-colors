@@ -371,3 +371,46 @@ The B runs started tonight with the current recipe would then be a "before" comp
   colour question doesn't need a fast driver, but seed 142's crawl drags Agent A's average down.)
 - D2: if yes, which candidates (F1, F2 or both) and which seeds (42 + 142 recommended; 42 alone saves half the time).
 - D3: allow two trainings at once by freeing about 2 GB of memory on Windows (halves the time)?
+
+## Step 2 results: Agent A (finished 2026-10-18 05:25)
+Agent A = recipe `entropy`, seeds 42 / 142 / 242, 4M decisions each, **final copies**, normal colors.
+Every evaluation race was replayed exactly (100/100 per seed and track set). Tables:
+`results/step2/agentA_validation_normal.md`, `results/step2/agentA_analysis_normal.md`.
+Learning curves: `results/step2/learning_curves.png`.
+
+| Agent A | Validation (100) | Analysis (100) | Analysis: covered | Laps (strict) | Laps (game's rule) | Off track |
+|---|---|---|---|---|---|---|
+| Seed 42 | 781.8 | 780.7 +/- 178.4 | 88.3% | 12% | 12% | 4% |
+| Seed 142 | 169.6 | 152.3 +/- 116.1 | 25.2% | 0% | 0% | 0% |
+| Seed 242 | 644.1 | 642.0 +/- 161.3 | 74.2% | 0% | 0% | 0% |
+| **Mean of seeds** | **531.8** | **525.0** | 62.6% | 4% | 4% | 1.3% |
+
+- **Not solved** (900) by any seed. **The 800 pass mark is missed by all three seeds** (best: seed 42, 780.7-781.8).
+- **Large differences between seeds** (152 to 781 on the same tracks). Picking the recipe on seed 42 alone made it
+  look better than it is: seed 42 turns out to be the best of the three.
+- Learning curves: seed 42 learned within 250k decisions and stayed at 750-820 on its 20-track checks. Seed 142
+  never got past about 320 and settled at 120-170. Seed 242 reached 747 at 504k, slid to 417 at 1.25M (like the
+  Zoo pilot's collapse), then recovered to 696 by the end.
+
+**How the three seeds drive** (frame sheets, path maps and driving numbers on the analysis tracks;
+`results/driving/A_seed*_entropy_analysis_normal/`)
+- **All three:** smooth, no wobble (0.16-0.66 steering reversals per second), almost no braking (0.0-0.7% of
+  decisions), never full gas, and **one steady speed** whatever the road does. None of them slows down for corners.
+- **Seed 42 (average speed 51):** centred, slightly cuts the inside of curves, follows almost every bend. Runs out
+  of time with 90%+ of the track done in most races. Its typical failure: overshoots a sharp hairpin onto the grass,
+  then drives straight until it leaves the map (4% of races), or, once lost, rejoins the road the wrong way.
+- **Seed 142 (average speed 13):** creeps. When it misses a bend at that low speed it rolls onto the grass and
+  stops there (20% of its time with all wheels on grass). Never leaves the playing area, covers a quarter of the track.
+- **Seed 242 (average speed 36):** very clean (all wheels on grass only 1.9% of the time, never leaves the map) but
+  slow: covers about three quarters of the track in the time. At some hairpins it slows almost to a stop and gets stuck.
+- **No point-farming tricks.** Driving backwards: at most 0.5% of the time on average. The shortcut counter flagged
+  21 / 17 / 1 races (seeds 42 / 142 / 242). Those are mostly bad races with lots of grass time; the two I replayed and
+  drew were a car that lost the road and looped back over road it had already driven (no points for that), and a
+  car that cut the inside of one bend and then stopped on the grass. Not a way of collecting extra points.
+
+**Notes**
+- The recipe's main weakness is the slow driving (diagnosis and a fix plan above; needs the director's go).
+- The 05:07 memory-guard stop: when Agent B seed 42 started training and seed 242's evaluation started next to it,
+  Windows' available memory fell to 2.3 GB and the guard stopped the evaluation. With the PC's other apps open,
+  only one of my jobs fits at a time, so B was stopped (2 minutes in, resumed exactly from checkpoint 0 at 05:23)
+  and the Step 2 evaluations ran first.
