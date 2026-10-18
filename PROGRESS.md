@@ -300,3 +300,21 @@ driver on the 100 validation tracks with its gas multiplied by 1.5, 2 and 3 (ste
 - **"Steering can't cope"** if 1.5x already adds more than 10 points of off-track races or loses more than 50
   points of mean score. Then the AI would need to learn braking and anticipation, not just more gas.
 - Anything else: "mixed", reported as such.
+
+**Gas-scaling result (02:15): "steering can't cope"** - by the rule written above. `results/step2/gas_scaling/summary.md`
+
+| Gas x | Mean score | Covered | Laps | Off track | Out of time | ...with 90%+ covered |
+|---|---|---|---|---|---|---|
+| 1.0 (exact match with the normal evaluation) | 781.8 | 88.5% | 16% | 6% | 78% | 55 |
+| 1.5 | 680.5 | 79.4% | 4% | 18% | 78% | 36 |
+| 2.0 | 526.5 | 65.1% | 2% | 36% | 62% | 11 |
+| 3.0 | 368.9 | 49.0% | 0% | 33% | 67% | 6 |
+
+At 1.5x gas the driver already loses 101 points and leaves the playing area 12 points more often. So the
+slowness is not just a timid throttle on top of good steering: at higher speed this driver misses corners.
+A faster driver would have to *learn* to brake before corners and speed up on straights, which it never does now.
+
+**All three seeds are slow** (training races, from 1.5M decisions on): seed 42 covers about 85% of the track per race,
+seed 242 50-67%, and seed 142 only 22-25%. Seeds 142 and 242 never leave the playing area and every race lasts the
+full 1,000 frames: they creep along the road. Seed 142's final copy: 169.6 on the 100 validation tracks, 152.3 on the
+100 analysis tracks.

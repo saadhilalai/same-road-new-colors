@@ -55,8 +55,8 @@ def my_jobs():
             continue
         try:
             args = open(f"/proc/{pid}/cmdline", "rb").read().replace(b"\0", b" ").decode()
-            if os.getpgid(int(pid)) != int(pid):
-                continue
+            if os.getpgid(int(pid)) != int(pid) or not os.path.basename(args.split()[0]).startswith("python"):
+                continue   # only the Python job itself (a process-group leader), not shells that mention it
             start = os.stat(f"/proc/{pid}").st_mtime
         except (OSError, ProcessLookupError):
             continue
