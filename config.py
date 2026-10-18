@@ -123,7 +123,7 @@ RECIPE_FIXES = {
     "entropy": dict(ent_coef=0.01),              # entropy bonus: a small reward for keeping some randomness
     "kl_limit": dict(target_kl=0.05),            # end a training round early once the driver has changed too much
 }
-RECIPE = "zoo"                                   # the recipe every agent uses; set to the trial winner below
+RECIPE = "entropy"                               # DECIDED 2026-10-17: trial winner on validation (results/step2/recipe_trial.md)
 RECIPE_TRIAL_MIN_SCORE = 500                     # if neither fix's final model reaches this on validation: stop
 
 
