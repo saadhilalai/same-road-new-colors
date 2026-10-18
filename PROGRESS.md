@@ -3,7 +3,7 @@
 Race-car AI that learns to drive from pixels only (Gymnasium CarRacing-v3, PPO),
 testing whether domain randomization (random colors in training) makes it robust to unseen colors.
 
-## Morning summary (night of 2026-10-17/18; written 05:30, updated 15:05)
+## Morning summary (night of 2026-10-17/18; written 05:30, updated 17:50)
 
 **Finished overnight**
 - **Step 2 is done** (details in "Step 2 results" below). Agent A, recipe `entropy`, final copies, normal colors:
@@ -42,6 +42,8 @@ testing whether domain randomization (random colors in training) makes it robust
   From 07:28 to 15:05, Windows mostly had only 2.0-3.5 GB available even with none of my jobs running
   (committed memory 45 of 48.5 GB at 15:05); 5.5 GB was never held for 10 minutes. B42 is safe at its
   1,753,088 checkpoint and restarts by itself once memory allows.
+- **15:52: B42 restarted** after the director cleared WSL's cache and paused another app. **17:49: B42 finished;
+  final 20-track check -20.0** (it never learned). Next in the queue: B42's evaluation, then B142 and B242.
 - One job at a time: with the PC's other apps open, Windows had only 2.3-6 GB of memory available. Your 3 GB rule
   stopped my work three times: I stopped seed 242's training by hand at 23:15 (resumed exactly at 02:00), and the memory
   guard (`scripts/memory_guard.py`) stopped an evaluation at 05:07 and B42 at 07:06. All my jobs run at low CPU
@@ -382,6 +384,18 @@ then got worse.** Training races (B's are on random colors, A's on normal colors
   Zoo pilot, matter more on the harder random-color task, and the shrinking noise leaves B little room to recover.
 - **Default (running):** carry on with the written plan (all three B seeds, final copies). A's seeds differed hugely
   (152 to 781), so B142/B242 may not follow B42. The question for the director is in the morning summary.
+
+**07:28: stopped again, then waited until 15:52.** The queue restarted B42 at 07:21; the guard stopped it 7 minutes
+later (Windows 3.0 GB available). From then until 15:05 Windows mostly had only 2.0-3.5 GB available even with
+none of my jobs running. At about 15:05 the director cleared WSL's file cache (2.5 GB -> 0.4 GB), and around 15:40 paused another app.
+Windows then had about 12 GB available, and the queue restarted B42 at 15:52 (exact resume; at 1,769,472 decisions the
+training score matched the stopped run's: -16.4).
+
+**B seed 42 finished at 17:49 (4,001,792 decisions).** 20-track check, normal colors, from 2M decisions to the final copy:
+-16.5, -26.0, -17.4, -17.4, -20.9, -20.5, -21.3, -21.2, **final -20.0** (covers 8% of the track, no laps). It never
+recovered. Its real result is the evaluation on the 100 analysis tracks, which runs next.
+Bookkeeping note: the DONE line says "1.939 h of training", but that counts only the last session. Sessions that
+were stopped never record their hours. B42 really trained about 3.8 h: 05:23-07:06, 07:21-07:28 and 15:52-17:49.
 
 ## Slow driving: diagnosis (no training; plan for a fix follows once the diagnosis is done)
 The director asked for a plan to fix the slow driving, with the judging rule written in advance, and **no
