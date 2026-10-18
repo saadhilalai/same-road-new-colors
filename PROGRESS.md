@@ -183,3 +183,38 @@ So the trial results are exactly what they would have been without the restart.
 **Advice for the director:** to avoid this during long runs, pause Windows updates (Settings > Windows Update >
 Pause updates) or widen active hours. An interruption now costs at most the ~25 min since the last checkpoint,
 but nothing restarts by itself until someone logs in.
+
+### Recipe trial result (2026-10-17 21:25): the entropy bonus wins
+Both trials ran the full 4M decisions on seed 42 (`entropy` 6.08 h, `kl_limit` 5.69 h of training, two at once).
+**Neither collapsed** the way the Zoo pilot did: their 20-track validation checks stayed between 662 and 862 the whole
+way (pilot: down to 247). Chart: `results/step2/A_seed42_training_health.png`.
+
+Final copies on all 100 validation tracks (`results/step2/recipe_trial.md`):
+
+| Seed 42 | Mean score | Median | Covered | Laps (strict) | Off track | Out of time | Avg gas | Avg abs(steer) |
+|---|---|---|---|---|---|---|---|---|
+| Zoo pilot, best checkpoint (504k), for reference | 772.8 | 862.8 | 87.4% | 18% | 4% | 78% | 0.16 | 0.078 |
+| Zoo pilot at 1.25M (collapsed), for reference | 348.5 | 331.4 | 47.6% | 0% | 40% | 60% | 0.14 | 0.049 |
+| **`entropy` final** | **781.8** | 862.4 | 88.5% | 16% | 6% | 78% | 0.09 | 0.060 |
+| `kl_limit` final | 692.7 | 811.8 | 79.1% | 8% | 0% | 92% | 0.25 | 0.280 |
+
+- Paired test on the same 100 tracks: `entropy` better on 66, `kl_limit` on 34; mean difference +89.2;
+  Wilcoxon signed-rank p = 0.0005. **By the pre-written rule the winner is `entropy`**, now `config.RECIPE`.
+- What that p-value does and doesn't say: it compares these two *trained drivers* across tracks. Each recipe was
+  trained once, so it does **not** show that the recipe is better in general (run-to-run variation is unmeasured).
+- **My earlier "likely reason" is not supported.** I guessed the pilot collapsed because its exploration noise
+  shrank to almost nothing. But the `entropy` run's noise shrank almost as much (0.135 -> 0.010 vs the pilot's
+  0.135 -> 0.008 at 2.9M), and its update size (approx KL) was just as large, yet it did not collapse.
+  The `kl_limit` run kept its noise high (0.094 at the end) and never left the playing area once trained, but its
+  final copy was weaker than its own earlier checkpoints (20-track checks peaked at 861 at 2.75M; final 678).
+  With one run per recipe I can't say *why* the pilot collapsed and the `entropy` run didn't; the three A seeds
+  (and three B seeds) will show whether collapses still happen with this recipe.
+- The pass mark I set for seed 42 (800 on the 100 validation tracks) is **not met**: 781.8. As decided, the
+  slowness is reported, not fixed: 55 of 100 races ran out of time with 90%+ of the track covered, and the car
+  never uses full gas (average gas 0.09).
+- Seed 42's run for Agent A is now `runs/A_seed42_entropy` (its exact replay after the restart is verified above).
+
+### Seeds 142 and 242 (started 2026-10-17 21:28, together)
+Recipe `entropy`, launched right after the trial as the director instructed. At checkpoint 0 both score -92.9:
+different starting weights (32 of 33 weight tensors differ; the shared one is the fixed starting noise level),
+but both untrained cars stand still for all 1,000 frames, which gives the same score.
