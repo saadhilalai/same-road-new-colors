@@ -203,8 +203,8 @@ Final copies on all 100 validation tracks (`results/step2/recipe_trial.md`):
 - What that p-value does and doesn't say: it compares these two *trained drivers* across tracks. Each recipe was
   trained once, so it does **not** show that the recipe is better in general (run-to-run variation is unmeasured).
 - **My earlier "likely reason" is not supported.** I guessed the pilot collapsed because its exploration noise
-  shrank to almost nothing. But the `entropy` run's noise shrank almost as much (0.135 -> 0.010 vs the pilot's
-  0.135 -> 0.008 at 2.9M), and its update size (approx KL) was just as large, yet it did not collapse.
+  shrank to almost nothing. But the `entropy` run's noise shrank almost as much (from 0.135 to 0.012 at 2.9M decisions,
+  vs the pilot's 0.008 at the same point; 0.010 at the end), and its update size (approx KL) was just as large, yet it did not collapse.
   The `kl_limit` run kept its noise high (0.094 at the end) and never left the playing area once trained, but its
   final copy was weaker than its own earlier checkpoints (20-track checks peaked at 861 at 2.75M; final 678).
   With one run per recipe I can't say *why* the pilot collapsed and the `entropy` run didn't; the three A seeds
