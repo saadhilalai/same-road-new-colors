@@ -3,6 +3,44 @@
 Race-car AI that learns to drive from pixels only (Gymnasium CarRacing-v3, PPO),
 testing whether domain randomization (random colors in training) makes it robust to unseen colors.
 
+## Morning summary (night of 2026-10-17/18; written 05:30, updated as things finish)
+
+**Finished overnight**
+- **Step 2 is done** (details in "Step 2 results" below). Agent A, recipe `entropy`, final copies, normal colors:
+
+  | Agent A | Validation (100 tracks) | Analysis (100 tracks) | Laps (strict), analysis | Off track, analysis |
+  |---|---|---|---|---|
+  | Seed 42 | 781.8 | 780.7 | 12% | 4% |
+  | Seed 142 | 169.6 | 152.3 | 0% | 0% |
+  | Seed 242 | 644.1 | 642.0 | 0% | 0% |
+  | Mean of seeds | 531.8 | 525.0 | 4% | 1.3% |
+
+  **All three miss the 800 pass mark**; none is solved (900). The seeds differ a lot: seed 142 creeps along at a
+  quarter of seed 42's speed. All three drive at one steady speed and never slow down for corners. No point-farming tricks.
+- **Step 3, first part done:** Agent A on unseen colors (analysis tracks) collapses for every seed:
+  42: 780.7 -> 89.7, 142: 152.3 -> -87.1, 242: 642.0 -> 1.5 (mean 525.0 -> 1.4). Seed 42 drives off the map at the
+  first corner in 64% of races; seeds 142 and 242 barely move. (No statistical test yet: the written plan compares A
+  with B, which needs B's results.)
+- **Step 3 plan and test rules written down before any B result** (Wilcoxon per track, Holm over 4 tests).
+- **Slow-driving diagnosis** (no training): the car cruises at the speed a lap barely needs, faster before sharp
+  turns than on straights, and almost never brakes. Giving it more gas makes it crash more (1.5x gas: -101 points,
+  +12 points of off-track races). A **plan with two candidate fixes and a judging rule fixed in advance** is in
+  "Plan: fixing the slow driving". Not started.
+
+**Running now**
+- **Agent B seed 42** (random colors, recipe `entropy`), training since 05:23, about 4.5 h. Then B seeds 142 and 242,
+  one at a time (about 14 h for all three), then B's evaluations and the A-vs-B tests.
+- One job at a time: with the PC's other apps open, Windows had only 2.3-6 GB of memory available. The memory guard
+  (`scripts/memory_guard.py`, your 3 GB rule) stopped my work twice: seed 242's training at 23:15 (resumed exactly
+  later) and an evaluation at 05:07. All my jobs run at low CPU priority (nice 10).
+
+**What I need from you**
+1. **The slow-driving fix (D1-D3 in the plan):** run the fix trial or not, which candidates, which seeds. Note: if a
+   fix is adopted, A and B both have to be retrained with it, and the B runs going on now become a "before" result.
+   If you want the trial first, I can pause B (it resumes exactly later).
+2. **Optional:** freeing about 2 GB of memory on Windows would let two jobs run at once (about twice as fast).
+3. **Reminder:** pause Windows updates while runs go overnight (it restarted the PC at 01:59 the night before).
+
 ## Step 1: Setup (done, 2026-10-16)
 
 ### Software (all pinned in requirements.txt)
