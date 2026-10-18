@@ -3,7 +3,7 @@
 Race-car AI that learns to drive from pixels only (Gymnasium CarRacing-v3, PPO),
 testing whether domain randomization (random colors in training) makes it robust to unseen colors.
 
-## Morning summary (night of 2026-10-17/18; written 05:30, updated 07:10)
+## Morning summary (night of 2026-10-17/18; written 05:30, updated 15:05)
 
 **Finished overnight**
 - **Step 2 is done** (details in "Step 2 results" below). Agent A, recipe `entropy`, final copies, normal colors:
@@ -37,6 +37,11 @@ testing whether domain randomization (random colors in training) makes it robust
   written before use: a job restarts once Windows has 5.5 GB available for 10 minutes. A queue
   (`scripts/job_queue.sh`) now runs everything one at a time: B42 to the end (about 2.2 h of training left),
   B42's evaluation, then B142 and B242 (about 4.5 h each), their evaluations, and the A-vs-B tests.
+- **07:28: stopped again**, 7 minutes after the queue restarted it (Windows went from 8.7 GB available to 3.0 GB;
+  my training uses about 2 GB, so the other apps grew by about 4 GB). **Since then B has been waiting.**
+  From 07:28 to 15:05, Windows mostly had only 2.0-3.5 GB available even with none of my jobs running
+  (committed memory 45 of 48.5 GB at 15:05); 5.5 GB was never held for 10 minutes. B42 is safe at its
+  1,753,088 checkpoint and restarts by itself once memory allows.
 - One job at a time: with the PC's other apps open, Windows had only 2.3-6 GB of memory available. Your 3 GB rule
   stopped my work three times: I stopped seed 242's training by hand at 23:15 (resumed exactly at 02:00), and the memory
   guard (`scripts/memory_guard.py`) stopped an evaluation at 05:07 and B42 at 07:06. All my jobs run at low CPU
