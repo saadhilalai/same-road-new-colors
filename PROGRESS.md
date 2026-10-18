@@ -239,7 +239,7 @@ Mid-run observations (not judged yet, nothing changed; the final copies are what
 seed 142's 20-track checks stayed at 246-317 up to 1M decisions (covers only ~40% of the track, almost never
 leaves the playing area); seed 242 peaked at 747 (504k) and was at 539 at 1M.
 
-## Step 3: Color test (plan written 2026-10-17 23:40, before any Agent B result)
+## Step 3: Color test (plan written 2026-10-17 23:20, before any Agent B result)
 Nothing in this plan needs a new decision from the director: the recipe was decided for A and B alike
 (`config.RECIPE = "entropy"`), the color rules were fixed in Step 1, and the time was announced in Step 2.
 
