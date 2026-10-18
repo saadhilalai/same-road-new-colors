@@ -12,6 +12,7 @@ cd "$(dirname "$0")/.." || exit 1
 mkdir -p logs
 MAX_TRIES=8
 NICE=$(.venv/bin/python -c "import config; print(config.NICE_LEVEL)")
+renice -n "$NICE" $$ > /dev/null   # the queue itself also runs at low priority
 q() { echo "[$(date '+%F %T')] $*" >> logs/job_queue.log; echo "$*"; }
 
 for job in "$@"; do

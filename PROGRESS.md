@@ -3,7 +3,7 @@
 Race-car AI that learns to drive from pixels only (Gymnasium CarRacing-v3, PPO),
 testing whether domain randomization (random colors in training) makes it robust to unseen colors.
 
-## Morning summary (night of 2026-10-17/18; written 05:30, updated 07:25)
+## Morning summary (night of 2026-10-17/18; written 05:30, updated 07:10)
 
 **Finished overnight**
 - **Step 2 is done** (details in "Step 2 results" below). Agent A, recipe `entropy`, final copies, normal colors:
@@ -338,7 +338,7 @@ The guard read 5.5-6 GB before 06:40, then 4.8 GB, 3.7 GB and 2.6 GB with the tr
 used more memory. Without the training, Windows had 4.6 GB available.
 The last checkpoint (1,753,088, full state saved) is complete, so the stop costs about 16k decisions (1 minute).
 
-**Restart rule (written 07:20, before first use).** After a memory stop, a job restarts only once Windows has had
+**Restart rule (written 07:10, before first use).** After a memory stop, a job restarts only once Windows has had
 at least **5.5 GB available for 10 minutes without a dip**. That is the 3 GB floor plus about 2 GB per job, plus a
 margin, so the restart doesn't trip the guard again at once. The values are in `config.py`
 (`RESUME_MIN_FREE_PC_MEMORY_GB`, `RESUME_STEADY_MINUTES`); `scripts/wait_for_memory.py` does the waiting.
