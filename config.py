@@ -26,6 +26,8 @@ MIN_FREE_GPU_GB = 2.0         # refuse to start training with less free GPU memo
 MIN_FREE_PC_MEMORY_GB = 3.0   # director's rule (2026-10-17): the PC also runs other apps; below this, stop my jobs
                               # (scripts/memory_guard.py). Measured on Windows ("Available" memory), not just inside WSL.
 NICE_LEVEL = 10               # director's rule: run at low CPU priority
+RESUME_MIN_FREE_PC_MEMORY_GB = 5.5   # after a memory stop, restart a job only once Windows has this much available
+RESUME_STEADY_MINUTES = 10           # ...for this long without a dip (3 GB floor + ~2 GB per job + margin)
 TORCH_CPU_THREADS = 2         # keep PyTorch from grabbing every CPU thread
 
 # ---------------------------------------------------------------------------

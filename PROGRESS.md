@@ -3,7 +3,7 @@
 Race-car AI that learns to drive from pixels only (Gymnasium CarRacing-v3, PPO),
 testing whether domain randomization (random colors in training) makes it robust to unseen colors.
 
-## Morning summary (night of 2026-10-17/18; written 05:30, updated as things finish)
+## Morning summary (night of 2026-10-17/18; written 05:30, updated 07:25)
 
 **Finished overnight**
 - **Step 2 is done** (details in "Step 2 results" below). Agent A, recipe `entropy`, final copies, normal colors:
@@ -28,18 +28,33 @@ testing whether domain randomization (random colors in training) makes it robust
   "Plan: fixing the slow driving". Not started.
 
 **Running now**
-- **Agent B seed 42** (random colors, recipe `entropy`), training since 05:23, about 4.5 h. Then B seeds 142 and 242,
-  one at a time (about 14 h for all three), then B's evaluations and the A-vs-B tests.
-- One job at a time: with the PC's other apps open, Windows had only 2.3-6 GB of memory available. Your 3 GB rule stopped my work twice:
-  I stopped seed 242's training by hand at 23:15 (resumed exactly at 02:00), and the memory guard I then wrote
-  (`scripts/memory_guard.py`) stopped an evaluation at 05:07. All my jobs run at low CPU priority (nice 10).
+- **Agent B seed 42** (random colors, recipe `entropy`) **is not learning to drive.** On the 20 normal-color check
+  tracks it scores -40 to -10, covering about 8% of the track; at the same point A42 was at 720-820. Its training races (random
+  colors) rose to a mean of about 120 by 500k decisions, then slid to -5 by 1.75M. Probably not a code bug: it
+  drove 900+ on a few early races. Details: "Agent B training (2026-10-18)". Nothing has been changed; the plan
+  runs as written.
+- **07:06: the memory guard stopped B seed 42** (Windows 2.6 GB available; nothing lost but 1 minute). New rule,
+  written before use: a job restarts once Windows has 5.5 GB available for 10 minutes. A queue
+  (`scripts/job_queue.sh`) now runs everything one at a time: B42 to the end (about 2.2 h of training left),
+  B42's evaluation, then B142 and B242 (about 4.5 h each), their evaluations, and the A-vs-B tests.
+- One job at a time: with the PC's other apps open, Windows had only 2.3-6 GB of memory available. Your 3 GB rule
+  stopped my work three times: I stopped seed 242's training by hand at 23:15 (resumed exactly at 02:00), and the memory
+  guard (`scripts/memory_guard.py`) stopped an evaluation at 05:07 and B42 at 07:06. All my jobs run at low CPU
+  priority (nice 10).
 
 **What I need from you**
 1. **The slow-driving fix (D1-D3 in the plan):** run the fix trial or not, which candidates, which seeds. Note: if a
    fix is adopted, A and B both have to be retrained with it, and the B runs going on now become a "before" result.
    If you want the trial first, I can pause B (it resumes exactly later).
-2. **Optional:** freeing about 2 GB of memory on Windows would let two jobs run at once (about twice as fast).
-3. **Reminder:** pause Windows updates while runs go overnight (it restarted the PC at 01:59 the night before).
+2. **Agent B (new):** B42 may finish far below A. If all B seeds fail like this, the main question
+   ("does B handle unseen colors better?") gets a weak answer: B would be worse than A on normal colors and both would fail on unseen ones.
+   Options: **(a) carry on as written** (running now; costs only PC time; B142/B242 may do better, as A's seeds
+   varied from 152 to 781); **(b) after B42, pause B** and first fix the unstable training updates for A and B
+   together (this could share one trial with the slow-driving fix); **(c) train B longer**, but then A and B
+   differ in two ways unless A is retrained as long too. **My recommendation: (a) for now**, and decide on (b)
+   together with item 1, since a fix that is adopted means retraining A and B anyway.
+3. **Optional:** freeing about 2 GB of memory on Windows would let two jobs run at once (about twice as fast).
+4. **Reminder:** pause Windows updates while runs go overnight (it restarted the PC at 01:59 the night before).
 
 ## Step 1: Setup (done, 2026-10-16)
 
@@ -316,6 +331,52 @@ Nothing in this plan needs a new decision from the director: the recipe was deci
 so about 14-15 h for all three, plus about 1.5 h of evaluations. B starts once A seed 242 is done. A second
 training only starts when Windows has at least 5.5 GB available (the 3 GB rule plus about 2.5 GB for the run);
 the memory guard enforces the 3 GB rule either way.
+
+### Agent B training (2026-10-18)
+**07:06: the memory guard stopped B seed 42** at about 1.77M decisions: Windows had only 2.6 GB available.
+The guard read 5.5-6 GB before 06:40, then 4.8 GB, 3.7 GB and 2.6 GB with the training running. The other apps
+used more memory. Without the training, Windows had 4.6 GB available.
+The last checkpoint (1,753,088, full state saved) is complete, so the stop costs about 16k decisions (1 minute).
+
+**Restart rule (written 07:20, before first use).** After a memory stop, a job restarts only once Windows has had
+at least **5.5 GB available for 10 minutes without a dip**. That is the 3 GB floor plus about 2 GB per job, plus a
+margin, so the restart doesn't trip the guard again at once. The values are in `config.py`
+(`RESUME_MIN_FREE_PC_MEMORY_GB`, `RESUME_STEADY_MINUTES`); `scripts/wait_for_memory.py` does the waiting.
+`scripts/job_queue.sh` runs the jobs one at a time and logs to `logs/job_queue.log`. It waits for memory before each
+start. After a memory stop, a training resumes exactly and an evaluation reruns (its results are deterministic).
+Any other failure ends the queue.
+Order: B42 training -> B42 evaluation (analysis tracks, normal + unseen colors) -> B42 driving checks -> B142
+training -> B242 training -> their evaluations and driving checks -> the Step 3 tests. B42 is now evaluated right
+after its own training, not after all three trainings, so a finished B can be looked at early. No test, track set
+or rule changes.
+
+**Mid-run observation (not judged, nothing changed; the final copy is what counts): B seed 42 learned a little,
+then got worse.** Training races (B's are on random colors, A's on normal colors), seed 42 in both:
+
+| Decisions | A: races | A: mean score | A: % races >= 900 | B: races | B: mean score | B: % races >= 900 |
+|---|---|---|---|---|---|---|
+| 0-250k | 525 | 424.0 | 5.5 | 512 | 16.0 | 0.2 |
+| 250-500k | 516 | 809.5 | 23.3 | 518 | 123.4 | 0.4 |
+| 500-750k | 533 | 751.8 | 25.5 | 518 | 123.6 | 0 |
+| 750k-1M | 525 | 770.4 | 26.5 | 512 | 55.0 | 0 |
+| 1-1.25M | 522 | 749.2 | 21.1 | 535 | 21.3 | 0 |
+| 1.25-1.5M | 510 | 765.1 | 14.3 | 520 | 13.7 | 0 |
+| 1.5-1.75M | 525 | 740.4 | 14.7 | 521 | -4.9 | 0 |
+
+- **On the 20 normal-color check tracks, B42 never got going:** -40 (250k), -12, -10, -20, -10, -12, -21 (1.75M), covering
+  8-9% of the track. A42 was at 822 by 250k.
+- **Probably not a code bug.** B drove 900+ on a few early training races (best 905.6), so random colors render and
+  the scoring works. The Step 1 environment checks still hold.
+- **Colors matter.** In the second half of B's training races so far, races with the least contrast between road and background (lowest
+  quarter) averaged -24; the highest quarter averaged +43. Normal colors are in the lowest-contrast quarter by
+  this measure (gray road vs green background differ in one channel only), so normal colors are among the harder
+  schemes for B.
+- **Training health:** A and B lose exploration noise at the same pace (std 0.12 -> 0.03 by 1.75M). Both change
+  their driving a lot at every update (approx_kl 0.3-0.9, clip fraction 0.57-0.75; typical PPO values are
+  roughly 0.01-0.05 and 0.1-0.2). **Likely reason (untested):** these unstable updates, the same weakness that sank the
+  Zoo pilot, matter more on the harder random-color task, and the shrinking noise leaves B little room to recover.
+- **Default (running):** carry on with the written plan (all three B seeds, final copies). A's seeds differed hugely
+  (152 to 781), so B142/B242 may not follow B42. The question for the director is in the morning summary.
 
 ## Slow driving: diagnosis (no training; plan for a fix follows once the diagnosis is done)
 The director asked for a plan to fix the slow driving, with the judging rule written in advance, and **no
