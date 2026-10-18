@@ -318,3 +318,56 @@ A faster driver would have to *learn* to brake before corners and speed up on st
 seed 242 50-67%, and seed 142 only 22-25%. Seeds 142 and 242 never leave the playing area and every race lasts the
 full 1,000 frames: they creep along the road. Seed 142's final copy: 169.6 on the 100 validation tracks, 152.3 on the
 100 analysis tracks.
+
+## Plan: fixing the slow driving (written 2026-10-18 02:50; NOT started, needs the director's go)
+
+**What we know** (sections above): all three seeds settle on driving slowly and steadily. Seed 42 cruises at
+almost exactly the speed a lap needs and runs out of time; seeds 142 and 242 creep (seed 142: average speed 13
+vs 52 for seed 42). None of them slows down for corners or speeds up on straights. Giving seed 42 more gas makes
+it crash more (gas-scaling test), so the fix has to teach braking and anticipation, not just "more gas".
+
+**Likely reasons (untested)**
+1. *Exploration of the pedals dies early.* The AI's random "trying things" shrinks from 0.135 to about 0.01.
+   Gas and brake are two separate outputs, each cut off at 0, so a driver that has settled on "no brake" almost
+   never gets to try braking (seed 42 brakes in 0.7% of decisions) and never learns its value before corners.
+2. *Running out of time doesn't hurt it in training.* At the 1,000-frame limit, Stable-Baselines3 treats the race
+   as if it went on (it "bootstraps" the value). So in training, unfinished track at time-out costs nothing,
+   while a crash costs -100 plus everything after it. Slow and safe looks good to the AI. Also, the AI
+   can't see how much time is left: the screen has no clock.
+
+**Two candidate fixes, each changing exactly one thing**
+- **F1 "one pedal"**: gas and brake become one output from -1 to 1 (above 0 = gas, below 0 = brake). A thin
+  wrapper turns it back into the game's 3 controls; game, rewards and score are unchanged. A neutral driver then
+  tries braking as often as accelerating. Targets reason 1.
+- **F2 "time counts"**: the 1,000-frame limit becomes the real end of a race in training (no bootstrapping), and
+  the AI gets a time-left bar drawn into the black dashboard strip of its image (otherwise it couldn't know when
+  the end comes). Targets reason 2. Changes what the AI sees, so it is a bigger design change than F1.
+
+**Test design**
+- Each candidate trains on seeds 42 **and** 142 (the current recipe's best and worst seed; one seed alone misled
+  us before), 4M decisions, final copies. Everything else is the current recipe (`entropy`).
+- Judged only on the 100 validation tracks, normal colors. Test tracks stay hidden.
+- Cost: 4 runs of about 4.5-5 h. With the PC's other apps open, memory allows one at a time (about 19 h); two at
+  a time (about 10 h) if Windows has about 2 GB more free.
+
+**Judging rule (fixed now, before any training)** - a candidate "works" only if all of these hold:
+1. **Better scores:** per track, the mean of its two seeds beats the current recipe's mean of the same two seeds
+   (currently 781.8 and 169.6 on validation, mean 475.7). Paired Wilcoxon test over the 100 tracks, two-sided,
+   Holm-corrected over the 2 candidates: mean difference > 0 and adjusted p < 0.05.
+2. **Mechanism:** for both seeds, the speed diagnosis shows it is slower before sharp turns than on straights
+   (now it is faster), and fewer races run out of time with 90%+ covered than with the current recipe.
+3. **Safety:** off-track races at most 10 percentage points above the current recipe (same seeds).
+4. **No tricks** in the driving check (driving backwards, shortcuts, point farming).
+5. The 800 pass mark is reported per seed and not changed.
+- If both work: the higher mean wins (the paired test between them is reported). If neither works: keep the
+  current recipe and report it.
+
+**What it would mean for the project:** A and B must use the same recipe. If a fix wins, both agents are retrained
+with it (the trial's seed 42 and 142 runs count for A; then A seed 242 and B seeds 42, 142, 242: 4 more runs).
+The B runs started tonight with the current recipe would then be a "before" comparison, not the final result.
+
+**Decisions needed from the director**
+- D1: run the fix trial, or keep the current recipe and report the slowness as a limitation? (The A-vs-B
+  colour question doesn't need a fast driver, but seed 142's crawl drags Agent A's average down.)
+- D2: if yes, which candidates (F1, F2 or both) and which seeds (42 + 142 recommended; 42 alone saves half the time).
+- D3: allow two trainings at once by freeing about 2 GB of memory on Windows (halves the time)?
