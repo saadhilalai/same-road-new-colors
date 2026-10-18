@@ -23,6 +23,9 @@ MAX_SIM_PROCESSES = 10        # at most 10 simulators in one training/evaluation
 CPU_THREAD_BUDGET = 20        # updated in Step 2: user allows 20 threads in total
 MAX_PARALLEL_TRAININGS = 2    # updated in Step 2: two trainings at once, if memory and speed checks pass
 MIN_FREE_GPU_GB = 2.0         # refuse to start training with less free GPU memory
+MIN_FREE_PC_MEMORY_GB = 3.0   # director's rule (2026-10-17): the PC also runs other apps; below this, stop my jobs
+                              # (scripts/memory_guard.py). Measured on Windows ("Available" memory), not just inside WSL.
+NICE_LEVEL = 10               # director's rule: run at low CPU priority
 TORCH_CPU_THREADS = 2         # keep PyTorch from grabbing every CPU thread
 
 # ---------------------------------------------------------------------------

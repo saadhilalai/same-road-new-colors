@@ -218,3 +218,23 @@ Final copies on all 100 validation tracks (`results/step2/recipe_trial.md`):
 Recipe `entropy`, launched right after the trial as the director instructed. At checkpoint 0 both score -92.9:
 different starting weights (32 of 33 weight tensors differ; the shared one is the fixed starting noise level),
 but both untrained cars stand still for all 1,000 frames, which gives the same score.
+
+### Night of 2026-10-17: memory rule, one training at a time
+The director's rules for the night: run at low priority, and if free memory drops under 3 GB, pause my work
+until it recovers (the PC also runs other apps).
+- At 23:13 Windows had only **2.4 GB available** (Task Manager's "Available", which includes the standby cache;
+  48.6 of 51.7 GB committed) with my two trainings running. The WSL VM, mostly my two trainings, took 7.9 GB.
+  The rest was other apps (several node processes, pythonw, Chrome, ChatGPT).
+- A frozen (SIGSTOP) process keeps its memory, so "pausing" has to mean stopping a training. With exact resumes
+  that costs only the time since its last checkpoint. **Seed 242 was stopped at 23:15** (about 50k decisions after
+  its 1,003,520 checkpoint). Windows available memory went from 2.4 GB to 4.2 GB, so one training costs about
+  2 GB on the Windows side.
+- So **one training at a time** while the other apps stay open: seed 142 continues alone; seed 242 resumes
+  exactly from 1,003,520 when 142 finishes.
+- New: `scripts/memory_guard.py` checks Windows' available memory every 30 s and, if it is under 3 GB twice in a
+  row, stops one of my jobs (analysis jobs first, then the newest training). Log: `logs/memory_guard.log`.
+  New config values: `MIN_FREE_PC_MEMORY_GB = 3.0`, `NICE_LEVEL = 10`; all my jobs now run at nice 10.
+
+Mid-run observations (not judged yet, nothing changed; the final copies are what count):
+seed 142's 20-track checks stayed at 246-317 up to 1M decisions (covers only ~40% of the track, almost never
+leaves the playing area); seed 242 peaked at 747 (504k) and was at 539 at 1M.
