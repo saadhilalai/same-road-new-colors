@@ -30,9 +30,9 @@ testing whether domain randomization (random colors in training) makes it robust
 **Running now**
 - **Agent B seed 42** (random colors, recipe `entropy`), training since 05:23, about 4.5 h. Then B seeds 142 and 242,
   one at a time (about 14 h for all three), then B's evaluations and the A-vs-B tests.
-- One job at a time: with the PC's other apps open, Windows had only 2.3-6 GB of memory available. The memory guard
-  (`scripts/memory_guard.py`, your 3 GB rule) stopped my work twice: seed 242's training at 23:15 (resumed exactly
-  later) and an evaluation at 05:07. All my jobs run at low CPU priority (nice 10).
+- One job at a time: with the PC's other apps open, Windows had only 2.3-6 GB of memory available. Your 3 GB rule stopped my work twice:
+  I stopped seed 242's training by hand at 23:15 (resumed exactly at 02:00), and the memory guard I then wrote
+  (`scripts/memory_guard.py`) stopped an evaluation at 05:07. All my jobs run at low CPU priority (nice 10).
 
 **What I need from you**
 1. **The slow-driving fix (D1-D3 in the plan):** run the fix trial or not, which candidates, which seeds. Note: if a
