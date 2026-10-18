@@ -3,7 +3,7 @@
 Race-car AI that learns to drive from pixels only (Gymnasium CarRacing-v3, PPO),
 testing whether domain randomization (random colors in training) makes it robust to unseen colors.
 
-## Morning summary (night of 2026-10-17/18; written 05:30, updated 18:05)
+## Morning summary (night of 2026-10-17/18; written 05:30, updated 18:30)
 
 **Finished overnight**
 - **Step 2 is done** (details in "Step 2 results" below). Agent A, recipe `entropy`, final copies, normal colors:
@@ -46,6 +46,14 @@ testing whether domain randomization (random colors in training) makes it robust
   final 20-track check -20.0** (it never learned). Next in the queue: B42's evaluation, then B142 and B242.
 - **18:03: B42 evaluated** on the 100 analysis tracks: **normal colors -22.0, unseen colors -10.5** (A42: 780.7 and
   89.7). It covers 8-9% of the track either way, no laps. No test yet: the plan tests the mean of 3 seeds.
+- **18:29: B42 driving checks done** (replays 100/100 on both color sets). With normal colors it follows the road
+  for about 3 s, drives straight on at the first corner, crosses the grass and **stops just before the map's edge**,
+  where it sits braking until time runs out (all wheels on grass 81% of the time, brakes on 65% of decisions,
+  mean speed 10.6 vs 51 for A42). Unseen colors: the same pattern (speed 16.9, grass 80%); its best race (304) followed
+  the road for 40% of the lap, then went straight on at a sharp turn. The 8 races flagged as possible shortcuts
+  all score 2-304 and end on the grass after missing a turn, not shortcuts.
+  **Likely reason (untested):** leaving the map costs -100, and stopping on the grass avoids that, so B learned that
+  much and no more.
 - One job at a time: with the PC's other apps open, Windows had only 2.3-6 GB of memory available. Your 3 GB rule
   stopped my work three times: I stopped seed 242's training by hand at 23:15 (resumed exactly at 02:00), and the memory
   guard (`scripts/memory_guard.py`) stopped an evaluation at 05:07 and B42 at 07:06. All my jobs run at low CPU
