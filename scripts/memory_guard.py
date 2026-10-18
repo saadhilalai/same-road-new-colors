@@ -20,7 +20,8 @@ from datetime import datetime
 import config
 
 LOG = config.PROJECT_ROOT / "logs" / "memory_guard.log"
-JOB_PATTERNS = ("scripts.evaluate_agent", "scripts.inspect_driving", "scripts.compare", "scripts.train")  # stop order
+JOB_PATTERNS = ("scripts.diagnose", "scripts.evaluate_agent", "scripts.inspect_driving", "scripts.compare",
+                "scripts.train")  # stop order: analysis jobs first, trainings last
 
 
 def log(msg):

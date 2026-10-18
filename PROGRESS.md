@@ -278,3 +278,25 @@ Nothing in this plan needs a new decision from the director: the recipe was deci
 so about 14-15 h for all three, plus about 1.5 h of evaluations. B starts once A seed 242 is done. A second
 training only starts when Windows has at least 5.5 GB available (the 3 GB rule plus about 2.5 GB for the run);
 the memory guard enforces the 3 GB rule either way.
+
+## Slow driving: diagnosis (no training; plan for a fix follows once the diagnosis is done)
+The director asked for a plan to fix the slow driving, with the judging rule written in advance, and **no
+training without the director's go**. First, cheap checks on seed 42's final copy (`entropy`), validation tracks only.
+
+**1. Speed diagnosis** (`scripts/diagnose_speed.py`, `results/step2/speed_diagnosis/`; all 100 races replayed exactly)
+- The car drives at **one steady cruising speed everywhere**: gas about 0.09 whatever the road ahead does;
+  it never uses more than half gas (highest 0.51), never full gas, and almost never brakes.
+- It is **fastest right before sharp turns** (average speed 57 vs 49 on straights), because speed builds up over
+  each straight with steady gas. In front of sharp turns all four wheels are off the road 17% of the time
+  (straights: 4%), and brakes only 3.4% of that time.
+- Its average speed (51.9) is almost exactly what a lap needs to finish in 20 seconds (51.7): 78 of 100 races
+  ran out of time, 55 of them with 90%+ of the track covered.
+
+**2. Gas-scaling what-if** (`scripts/diagnose_gas_scaling.py`, rule written before running): replay the same
+driver on the 100 validation tracks with its gas multiplied by 1.5, 2 and 3 (steering and brake untouched).
+- Check: factor 1.0 must reproduce the normal evaluation exactly (781.8), otherwise the test is broken.
+- **"Steering copes with more speed"** if some factor >= 1.5 gives a higher mean score than 1.0 **and** at most
+  10 percentage points more off-track races. Then the limit is the throttle the AI learned.
+- **"Steering can't cope"** if 1.5x already adds more than 10 points of off-track races or loses more than 50
+  points of mean score. Then the AI would need to learn braking and anticipation, not just more gas.
+- Anything else: "mixed", reported as such.
