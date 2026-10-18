@@ -238,3 +238,43 @@ until it recovers (the PC also runs other apps).
 Mid-run observations (not judged yet, nothing changed; the final copies are what count):
 seed 142's 20-track checks stayed at 246-317 up to 1M decisions (covers only ~40% of the track, almost never
 leaves the playing area); seed 242 peaked at 747 (504k) and was at 539 at 1M.
+
+## Step 3: Color test (plan written 2026-10-17 23:40, before any Agent B result)
+Nothing in this plan needs a new decision from the director: the recipe was decided for A and B alike
+(`config.RECIPE = "entropy"`), the color rules were fixed in Step 1, and the time was announced in Step 2.
+
+**What runs**
+1. **A on unseen colors.** A's three final copies on the 100 analysis tracks (20000-20099) with unseen colors:
+   color seed = track number. B trains only on color seeds 1,000,000-1,999,999, so no agent ever saw these.
+   The normal-color results on the same tracks come from Step 2.
+2. **Train B:** seeds 42, 142, 242; same recipe, same 4M decisions, final copies. The only difference from A:
+   a new random color scheme every training race (Gymnasium's color formula, own random stream, so the
+   track for a given seed is unchanged).
+3. **Evaluate B** the same way as A: same 100 analysis tracks, normal and unseen colors (identical color seeds).
+   Every race's actions are saved; replays are checked against the recorded results.
+4. **Driving checks** (`scripts.inspect_driving`) for B on both color conditions and for A on unseen colors.
+
+**Test plan (fixed now)** - `scripts/compare_agents.py`
+- Unit = a track. For each agent and color condition, a track's score = the mean over that agent's 3 seeds.
+  Pairs = same track, same colors.
+- Four comparisons (first minus second):
+  1. A unseen - A normal (does A suffer on new colors?)
+  2. **B unseen - A unseen (the main question)**
+  3. B normal - A normal (the price of robustness: negative = B pays a price on normal colors)
+  4. B unseen - B normal
+- Wilcoxon signed-rank test, two-sided, on the 100 per-track differences; Holm correction across the four;
+  a difference is called significant only if its Holm-adjusted p < 0.05. Also reported: mean and median
+  difference, 95% paired-bootstrap interval (10,000 resamples, seed 0), tracks better / worse / tied.
+- Every metric for every agent x color condition, per seed and as the mean of seeds: score, solved (900),
+  track covered, laps (strict), laps (game's rule), off track.
+- Limits, stated in advance: the tests compare these six trained drivers across tracks. With 3 training runs per
+  agent they do not measure how much a fresh training run would vary, so each seed's numbers are shown and any
+  disagreement between seeds is reported. "Proven" is never used without a significant paired test.
+- The 800 pass mark is not changed. The hidden test tracks (10000-10099) are not touched.
+- The script was checked on made-up data with known effects (-200, +100, 0, -100): it recovered all four and
+  called the zero effect not significant.
+
+**Timing.** With the director's other apps open, memory allows one training at a time, about 4.5-5 h per B seed,
+so about 14-15 h for all three, plus about 1.5 h of evaluations. B starts once A seed 242 is done. A second
+training only starts when Windows has at least 5.5 GB available (the 3 GB rule plus about 2.5 GB for the run);
+the memory guard enforces the 3 GB rule either way.
