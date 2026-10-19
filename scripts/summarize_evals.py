@@ -19,7 +19,7 @@ def main():
     p.add_argument("--agent", required=True)
     p.add_argument("--name", required=True, help="e.g. analysis_normal, validation_normal")
     p.add_argument("--out", default=None)
-    p.add_argument("--recipe", choices=sorted(config.RECIPE_FIXES), default=config.RECIPE)
+    p.add_argument("--recipe", choices=config.ALL_RECIPES, default=config.RECIPE)
     args = p.parse_args()
 
     rows = []

@@ -52,7 +52,7 @@ def main():
     p.add_argument("--tracks", choices=sorted(TRACK_SETS), required=True)
     p.add_argument("--colors", choices=["normal", "unseen"], nargs="+", default=["normal"])
     p.add_argument("--checkpoint", default="final")
-    p.add_argument("--recipe", choices=sorted(config.RECIPE_FIXES), default=config.RECIPE)
+    p.add_argument("--recipe", choices=config.ALL_RECIPES, default=config.RECIPE)
     args = p.parse_args()
 
     for seed in args.seeds:

@@ -10,7 +10,8 @@ import pandas as pd
 import torch
 
 import config
-from racecar.train_utils import build_eval_vec_env
+from racecar.envs import one_pedal_to_game
+from racecar.train_utils import build_eval_vec_env, view_of
 
 NORMAL = -1   # color_seed value meaning "normal colors"
 
@@ -37,14 +38,16 @@ def evaluate(model, episodes, venv=None, continuous=True, grayscale=False, recor
     episodes: list of (track_seed, color_seed); color_seed None = normal colors.
     venv: an evaluation env from build_eval_vec_env (reused during training); built here if None.
     Returns a DataFrame (one row per race) and, if record_actions, {(track, color): actions array}.
+    Recorded actions are always the game's [steer, gas, brake], also for one-pedal agents, so replays need no AI.
     """
     episodes = [(int(t), None if c is None else int(c)) for t, c in episodes]
     assert len(set(episodes)) == len(episodes), "duplicate races"
     assert all(t != config.FILLER_TRACK for t, _ in episodes)
 
+    view = view_of(model)
     own_venv = venv is None
     if own_venv:
-        venv = build_eval_vec_env(min(config.EVAL_N_ENVS, len(episodes)), continuous, grayscale)
+        venv = build_eval_vec_env(min(config.EVAL_N_ENVS, len(episodes)), continuous, grayscale, **view)
     n = venv.num_envs
     for i in range(n):
         venv.env_method("set_schedule", episodes[i::n], indices=[i])
@@ -57,9 +60,10 @@ def evaluate(model, episodes, venv=None, continuous=True, grayscale=False, recor
     while pending:
         act, _ = model.predict(obs, deterministic=True)
         obs, _, dones, infos = venv.step(act)
+        game_act = one_pedal_to_game(act) if view["one_pedal"] else act
         for i in range(n):
             if record_actions:
-                current[i].append(np.array(act[i], dtype=np.float32))
+                current[i].append(np.array(game_act[i], dtype=np.float32))
             if dones[i]:
                 key = (infos[i]["track_seed"], infos[i]["color_seed"])
                 if key in pending:            # filler races are ignored

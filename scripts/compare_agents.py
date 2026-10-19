@@ -2,7 +2,7 @@
 Step 3 color test: Agent A (normal colors) vs Agent B (random colors) on the analysis tracks,
 with normal colors and with unseen colors. Applies the test plan written in PROGRESS.md before any B result existed.
 
-    python -m scripts.compare_agents --out-dir results/step3
+    python -m scripts.compare_agents --out-dir results/step3 --recipe-a entropy --recipe-b entropy
 
 Unit of analysis: a track. For each of the 100 analysis tracks and each color condition, an agent's score is the
 mean over its 3 seeds (final copies). Comparisons pair the same track (and, for unseen colors, the same colors).
@@ -36,10 +36,10 @@ ALPHA = 0.05
 BOOTSTRAP_RESAMPLES = 10_000
 
 
-def load(agent, colors, track_set):
+def load(agent, colors, track_set, recipe):
     frames = []
     for seed in config.TRAINING_SEEDS:
-        path = config.RESULTS_DIR / "evals" / config.run_name(agent, seed) / f"{track_set}_{colors}.csv"
+        path = config.RESULTS_DIR / "evals" / config.run_name(agent, seed, recipe) / f"{track_set}_{colors}.csv"
         if path.exists():
             df = pd.read_csv(path)
             df["seed"] = seed
@@ -66,12 +66,16 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument("--tracks", default="analysis")
     p.add_argument("--out-dir", required=True)
+    p.add_argument("--recipe-a", choices=config.ALL_RECIPES, default=config.RECIPE)
+    p.add_argument("--recipe-b", choices=config.ALL_RECIPES, default=config.RECIPE)
     args = p.parse_args()
+    recipes = {"A": args.recipe_a, "B": args.recipe_b}
     out = config.PROJECT_ROOT / args.out_dir
     out.mkdir(parents=True, exist_ok=True)
 
-    data = {(a, c): load(a, c, args.tracks) for a in config.AGENTS for c in ("normal", "unseen")}
-    lines = [f"# Step 3 color test ({args.tracks} tracks, final copies, recipe '{config.RECIPE}')", ""]
+    data = {(a, c): load(a, c, args.tracks, recipes[a]) for a in config.AGENTS for c in ("normal", "unseen")}
+    lines = [f"# Step 3 color test ({args.tracks} tracks, final copies, recipes: A '{args.recipe_a}', "
+             f"B '{args.recipe_b}')", ""]
 
     # Per seed and mean of seeds, every metric
     rows = []

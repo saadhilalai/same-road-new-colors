@@ -1,6 +1,7 @@
 #!/bin/bash
 # Runs my jobs one at a time (director's memory rule: only one fits next to the PC's other apps), at low priority.
-# Before each (re)start it waits until memory has recovered (scripts/wait_for_memory.py). If the memory guard stops
+# Before each start it waits until memory has recovered (scripts/wait_for_memory.py: 1 min steady for a first
+# start, 10 min after a memory stop). If the memory guard stops
 # a job, it waits and starts it again: a training resumes exactly from its last checkpoint; an evaluation simply
 # reruns (its results are deterministic). Any other failure ends the queue.
 #
@@ -28,7 +29,7 @@ print(config.run_name(arg('--agent'), int(arg('--seed')), arg('--recipe')))" $jo
   fi
   ok=0
   for try in $(seq $MAX_TRIES); do
-    .venv/bin/python -m scripts.wait_for_memory
+    if [ "$try" -eq 1 ]; then .venv/bin/python -m scripts.wait_for_memory --first-start; else .venv/bin/python -m scripts.wait_for_memory; fi
     stops=$(grep -c "STOP:" logs/memory_guard.log)
     q "START (try $try): $job"
     setsid -w nice -n "$NICE" .venv/bin/python -m $job >> "$out" 2>&1 < /dev/null; rc=$?

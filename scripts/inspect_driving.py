@@ -120,7 +120,7 @@ def main():
     p.add_argument("--colors", default="normal")
     p.add_argument("--checkpoint", default="final")
     p.add_argument("--workers", type=int, default=6)
-    p.add_argument("--recipe", choices=sorted(config.RECIPE_FIXES), default=config.RECIPE)
+    p.add_argument("--recipe", choices=config.ALL_RECIPES, default=config.RECIPE)
     args = p.parse_args()
     run_name = config.run_name(args.agent, args.seed, args.recipe)
 

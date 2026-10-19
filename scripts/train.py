@@ -6,7 +6,7 @@ training state (random-number generators, each simulator's current race, frame s
 so a resumed run continues bit-for-bit as if it had never stopped. Training is repeatable from the
 seed on this PC (tested), and all files are written atomically so a power cut can't leave half a checkpoint.
 
-    python -m scripts.train --agent A --seed 42 [--recipe entropy]
+    python -m scripts.train --agent A --seed 42 [--recipe beta]
 
 Writes to runs/<run name>/ (see config.run_name: e.g. A_seed42 for the Zoo recipe, A_seed42_entropy for a fix):
     run_info.json          settings, versions, git commit, timing, status
@@ -33,14 +33,13 @@ import numpy as np
 import pandas as pd
 import stable_baselines3
 import torch
-from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.utils import set_random_seed
 from stable_baselines3.common.vec_env import VecFrameStack, VecTransposeImage
 
 import config
 from racecar.evaluate import episode_record, evaluate, summarize
-from racecar.train_utils import build_eval_vec_env, build_ppo, build_vec_env
+from racecar.train_utils import algorithm_class, build_eval_vec_env, build_ppo, build_vec_env
 
 
 def log(msg):
@@ -248,12 +247,14 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument("--agent", choices=sorted(config.AGENTS), required=True)
     p.add_argument("--seed", type=int, required=True)
-    p.add_argument("--total-timesteps", type=int, default=config.TOTAL_TIMESTEPS)
+    p.add_argument("--total-timesteps", type=int, default=None, help="default: config.total_timesteps(recipe)")
     p.add_argument("--checkpoint-every", type=int, default=config.CHECKPOINT_EVERY)
     p.add_argument("--val-tracks", type=int, default=len(config.VALIDATION_DURING_TRAINING))
-    p.add_argument("--recipe", choices=sorted(config.RECIPE_FIXES), default=config.RECIPE)
+    p.add_argument("--recipe", choices=config.ALL_RECIPES, default=config.RECIPE)
     p.add_argument("--run-dir", default=None, help="default: runs/<run name> (other folders are for tests)")
     args = p.parse_args()
+    if args.total_timesteps is None:
+        args.total_timesteps = config.total_timesteps(args.recipe)
 
     torch.set_num_threads(config.TORCH_CPU_THREADS)
     # Same GPU math every run (evaluate() also sets this). With it, training repeats bit-for-bit from the seed.
@@ -275,21 +276,35 @@ def main():
         sys.exit(3)
 
     agent_cfg = config.AGENTS[args.agent]
+    view = config.recipe_view(args.recipe)
+    # Slaoui's method (Agent B's fallback): the races are in normal colors; the random colors go into the copies.
+    color_mode = "normal" if view["copies"] else agent_cfg["color_mode"]
+    if view["copies"] and agent_cfg["color_mode"] != "random":
+        log(f"STOP: recipe '{args.recipe}' is Agent B's fallback (random colors as recolored copies), not for agent {args.agent}.")
+        sys.exit(2)
+    if args.recipe in config.BETA_RECIPES:
+        recipe_settings = {"source": "Petrazzini & Antonelo 2021 (arXiv 2111.02202), Table II; see config.py",
+                           "ppo": config.BETA_PPO_PARAMS, "learning_rate": f"{config.BETA_LEARNING_RATE}, linear to 0",
+                           "policy": "Beta", "policy_kwargs": config.BETA_POLICY_KWARGS, "one_pedal": view["one_pedal"],
+                           "slaoui_copy_penalty": config.BETA_RECIPES[args.recipe]["copy_penalty"]}
+    else:
+        recipe_settings = {"source": "rl_zoo3 2.9.1 hyperparams/ppo.yml, CarRacing-v3 (grayscale switched off: see config.py)",
+                           "change_from_zoo": config.RECIPE_FIXES[args.recipe]}
     commit, dirty = git_state()
     if run.info is None:
         run.info = {
             "agent": args.agent,
             "agent_description": agent_cfg["description"],
             "seed": args.seed,
-            "color_mode": agent_cfg["color_mode"],
+            "color_mode": color_mode,
+            "recolored_copies": "random colors (B's color range), one scheme per race" if view["copies"] else None,
             "continuous_actions": config.CONTINUOUS_ACTIONS,
             "grayscale": config.GRAYSCALE,
             "total_timesteps_target": args.total_timesteps,
             "checkpoint_every": args.checkpoint_every,
             "validation_tracks_during_training": run.val_tracks,
-            "hyperparameters_source": "rl_zoo3 2.9.1 hyperparams/ppo.yml, CarRacing-v3 (grayscale switched off: see config.py)",
             "recipe": args.recipe,
-            "recipe_change_from_zoo": config.RECIPE_FIXES[args.recipe],
+            "recipe_settings": recipe_settings,
             "status": "running",
             "timesteps_done": 0,
             "sessions": [],
@@ -323,20 +338,22 @@ def main():
     })
     run.save_info()
 
-    eval_venv = build_eval_vec_env(config.EVAL_N_ENVS, config.CONTINUOUS_ACTIONS, config.GRAYSCALE)
+    eval_venv = build_eval_vec_env(config.EVAL_N_ENVS, config.CONTINUOUS_ACTIONS, config.GRAYSCALE, **view)
+    algo = algorithm_class(args.recipe)
     if final_ready:
         log("Training already finished earlier; redoing only the final checkpoint step.")
-        venv = build_vec_env(config.N_ENVS, env_seed, agent_cfg["color_mode"], config.CONTINUOUS_ACTIONS, config.GRAYSCALE,
-                             vecnormalize_path=run.ckpt_dir / "vecnormalize_final.pkl")
-        model = PPO.load(final_path, env=venv, device=config.DEVICE)
+        venv = build_vec_env(config.N_ENVS, env_seed, color_mode, config.CONTINUOUS_ACTIONS, config.GRAYSCALE,
+                             vecnormalize_path=run.ckpt_dir / "vecnormalize_final.pkl", **view)
+        model = algo.load(final_path, env=venv, device=config.DEVICE)
         run.drop_validation_at(model.num_timesteps)
         run.info["checkpoints"] = [c for c in run.info["checkpoints"] if c["tag"] != "final"]
     else:
         if ckpt_path is None:
             log(f"Starting {run_dir.name}: agent {args.agent} ({agent_cfg['description']}), seed {args.seed}, "
-                f"recipe '{args.recipe}' {config.RECIPE_FIXES[args.recipe]}, {args.total_timesteps:,} decisions. "
+                f"recipe '{args.recipe}', race colors {color_mode}"
+                f"{' + random recolored copies (Slaoui)' if view['copies'] else ''}, {args.total_timesteps:,} decisions. "
                 f"GPU free: {free_gb:.2f} GB.")
-            venv = build_vec_env(config.N_ENVS, env_seed, agent_cfg["color_mode"], config.CONTINUOUS_ACTIONS, config.GRAYSCALE)
+            venv = build_vec_env(config.N_ENVS, env_seed, color_mode, config.CONTINUOUS_ACTIONS, config.GRAYSCALE, **view)
             model = build_ppo(venv, args.seed, config.CONTINUOUS_ACTIONS, tensorboard_log=str(run_dir / "tb"),
                               recipe=args.recipe)
             start_ts = 0
@@ -345,9 +362,9 @@ def main():
                 f"{'exact: full state saved' if exact else 'approximate: weights only'}).")
             run.drop_rows_after(start_ts)
             run.info["checkpoints"] = [c for c in run.info["checkpoints"] if c["timesteps"] <= start_ts]
-            venv = build_vec_env(config.N_ENVS, env_seed, agent_cfg["color_mode"], config.CONTINUOUS_ACTIONS, config.GRAYSCALE,
-                                 vecnormalize_path=run.ckpt_dir / f"vecnormalize_{start_ts}.pkl")
-            model = PPO.load(ckpt_path, env=venv, device=config.DEVICE)
+            venv = build_vec_env(config.N_ENVS, env_seed, color_mode, config.CONTINUOUS_ACTIONS, config.GRAYSCALE,
+                                 vecnormalize_path=run.ckpt_dir / f"vecnormalize_{start_ts}.pkl", **view)
+            model = algo.load(ckpt_path, env=venv, device=config.DEVICE)
             if not exact:
                 set_random_seed(env_seed, using_cuda=True)
         t0 = time.time()

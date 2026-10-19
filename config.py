@@ -28,6 +28,7 @@ MIN_FREE_PC_MEMORY_GB = 3.0   # director's rule (2026-10-17): the PC also runs o
 NICE_LEVEL = 10               # director's rule: run at low CPU priority
 RESUME_MIN_FREE_PC_MEMORY_GB = 5.5   # after a memory stop, restart a job only once Windows has this much available
 RESUME_STEADY_MINUTES = 10           # ...for this long without a dip (3 GB floor + ~2 GB per job + margin)
+FIRST_START_STEADY_MINUTES = 1       # a job's first start (not after a memory stop): same 5.5 GB, steady for 1 min
 TORCH_CPU_THREADS = 2         # keep PyTorch from grabbing every CPU thread
 
 # ---------------------------------------------------------------------------
@@ -128,8 +129,61 @@ RECIPE_FIXES = {
     "entropy": dict(ent_coef=0.01),              # entropy bonus: a small reward for keeping some randomness
     "kl_limit": dict(target_kl=0.05),            # end a training round early once the driver has changed too much
 }
-RECIPE = "entropy"                               # DECIDED 2026-10-17: trial winner on validation (results/step2/recipe_trial.md)
 RECIPE_TRIAL_MIN_SCORE = 500                     # if neither fix's final model reaches this on validation: stop
+
+# ---------------------------------------------------------------------------
+# Recipe "beta" (DECIDED 2026-10-19 by the director, from the research in PROGRESS.md): replaces the Zoo recipe
+# for A and B. Petrazzini & Antonelo 2021 (arXiv 2111.02202), Table II, CarRacing column: PPO with a Beta policy
+# and gas + brake merged into one pedal. Kept from this project where the paper differs: color input, 64x64 with
+# 2 stacked images, frame skip 2, reward rescaling during learning (all above).
+# Not stated in the paper, so Stable-Baselines3 defaults: gradient clipping 0.5, advantages normalized per
+# minibatch, orthogonal initial weights, no value clipping, ReLU after the extra layers.
+# ---------------------------------------------------------------------------
+BETA_TOTAL_TIMESTEPS = 5_000_000                 # the paper's 5M steps (= 10M simulator frames with frame skip 2)
+BETA_PPO_PARAMS = dict(
+    n_steps=500,          # "horizon" 500 per simulator, 8 simulators (N_ENVS)
+    batch_size=64,
+    gamma=0.99,
+    gae_lambda=0.95,
+    n_epochs=10,
+    ent_coef=0.01,
+    vf_coef=0.5,
+    clip_range=0.1,
+)
+BETA_LEARNING_RATE = 2.5e-4                      # shrinks linearly to 0, like the paper's
+# Shared image network = SB3's NatureCNN (3 convolution layers + 512 units, "resembles" Mnih et al. in the paper),
+# then two 512-unit layers for the driver and one for the value estimate (the paper's layout).
+BETA_POLICY_KWARGS = dict(net_arch=dict(pi=[512, 512], vf=[512]), activation_fn="ReLU")
+ONE_PEDAL = True      # the AI outputs [steer, pedal]: pedal > 0 = gas, < 0 = brake (envs.OnePedal); the game is unchanged
+
+# Agent B fallback (DECIDED 2026-10-19 by the director): if B seed 42 still can't drive with plain random colors,
+# B switches to Slaoui et al. 2020 (arXiv 1910.10537): races in normal colors, plus a recolored copy of every image
+# (same moment, random colors from B's color range, one color scheme per race). The AI acts on the normal image
+# only; a penalty pulls its internal view of the copy towards its view of the original:
+#     loss = PPO loss + SLAOUI_PENALTY * mean((features(image) - features(copy))^2)
+# features = the last layer the driver and value parts share (Slaoui's network shares all hidden layers, so their
+# "last hidden layer" is that layer too). Gradients flow through both, as in their code.
+SLAOUI_PENALTY = 50.0                            # their lambda; 50 beat 10 on CarRacing (640 / 553 vs 622 / 324)
+
+# Every recipe of the new kind: copy_penalty None = plain PPO, a number = Slaoui's method.
+BETA_RECIPES = {
+    "beta": dict(copy_penalty=None),
+    "beta_slaoui": dict(copy_penalty=SLAOUI_PENALTY),
+}
+ALL_RECIPES = sorted(RECIPE_FIXES) + sorted(BETA_RECIPES)
+RECIPE = "beta"                                  # DECIDED 2026-10-19 (was "entropy", the Step 2 trial winner)
+B_FALLBACK_RECIPE = "beta_slaoui"
+
+
+def total_timesteps(recipe):
+    return BETA_TOTAL_TIMESTEPS if recipe in BETA_RECIPES else TOTAL_TIMESTEPS
+
+
+def recipe_view(recipe):
+    """Which simulator wrappers a recipe needs: one pedal, and recolored copies (Slaoui)."""
+    is_beta = recipe in BETA_RECIPES
+    return dict(one_pedal=is_beta and ONE_PEDAL,
+                copies=is_beta and BETA_RECIPES[recipe]["copy_penalty"] is not None)
 
 
 def run_name(agent, seed, recipe=None):
@@ -153,3 +207,14 @@ VALIDATION_DURING_TRAINING = VALIDATION_TRACKS[:20]   # 20 tracks, normal colors
 EVAL_N_ENVS = 8                                  # simulators used for evaluation (training sims sit idle meanwhile)
 PILOT_PASS_SCORE = 800                           # seed 42 must average this on all 100 validation tracks
 AGENT_CHECKPOINT = "final"                       # DECIDED: each run's final copy is the agent (A and B alike); no picking
+
+# ---------------------------------------------------------------------------
+# Retraining plan with recipe "beta" (judging rule written in PROGRESS.md before training, 2026-10-19).
+# Judged on the 100 validation tracks, normal colors, final copies. Applied by scripts/plan_gate.py.
+# ---------------------------------------------------------------------------
+PLAN_OLD_RECIPE = "entropy"     # the recipe being replaced (the comparison baseline)
+PLAN_A42_MIN = 500              # A seed 42 below this: the recipe or my code doesn't work here -> stop
+PLAN_B42_MIN = 100              # B seed 42 below this = "still can't drive" -> B switches to B_FALLBACK_RECIPE (once)
+PLAN_B_TWO_SEED_MIN = 300       # B's mean of seeds 42 + 142 must reach this...
+PLAN_ALPHA = 0.05               # ...and beat the old B on the same tracks (paired Wilcoxon, two-sided)
+PLAN_A_MAX_DROP = 50            # A's mean of seeds 42 + 142 at most this far below the old A's (475.7)

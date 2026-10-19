@@ -3,10 +3,16 @@
 Race-car AI that learns to drive from pixels only (Gymnasium CarRacing-v3, PPO),
 testing whether domain randomization (random colors in training) makes it robust to unseen colors.
 
-## Summary (updated 2026-10-19 03:20)
+## Summary (updated 2026-10-19 16:40)
 
-**Finished:** Step 2 (Agent A, 2026-10-18 05:25) and **Step 3, the color test (2026-10-19 03:05)**. All training in
-the plan is done and nothing of mine is running except the small memory guard and memory logger. The flag file was written at 03:05.
+**Now (2026-10-19): retraining A and B with the new recipe "beta"** (PPO with a Beta policy and one pedal, from
+published evidence; director's OK). Code and checks are done (24/24 tests; exact resume after a hard kill).
+The plan runs unattended: about 40 h, or about 52 h if B switches to Slaoui's method. The rule was written before
+training. Details, rule and measured speed: "Plan: retraining with recipe beta". Progress: `logs/plan.log`,
+gate decisions: `results/beta_plan/gates.md`.
+
+**Finished earlier:** Step 2 (Agent A, 2026-10-18 05:25) and **Step 3, the color test (2026-10-19 03:05)**, with the
+old recipe ("entropy"). Those results stay as the "before" comparison:
 
 Mean score on the 100 analysis tracks (final copies; a full lap is worth about 900):
 
@@ -25,10 +31,9 @@ Mean score on the 100 analysis tracks (final copies; a full lap is worth about 9
   The seeds disagree, too: A42 beats B42 on unseen colors. Details: "Step 3 results".
 - So **the project question is still open**: it can't be answered until B can drive.
 
-**Update 2026-10-19 (research done, nothing trained):** the director chose (a), combined with the slow-driving fix,
-and asked for an evidence-based recipe. Research and recommendation: "Research: what has reached ~900" below.
-**Waiting for the director's OK** on the recommended recipe (PPO with a Beta policy and one pedal, about 32 h for all
-six runs). The list below is the earlier question, kept for the record.
+**Update 2026-10-19:** the director chose (a), combined with the slow-driving fix, and asked for an evidence-based
+recipe. Research: "Research: what has reached ~900" below. The director OK'd the recommended recipe; it is running
+(see the top of this summary). The list below is the earlier question, kept for the record.
 
 **What I needed from you (answered 2026-10-19: option a)**
 1. **How to get Agent B to learn** (this now blocks the project question). Likely reason (untested): the training updates
@@ -458,6 +463,93 @@ across the grass. B242 often makes a long, slow arc inside the track's loop. Tha
 races are flagged as "possible shortcuts": the nearest point of the road jumps while the car crosses the grass.
 These races score at most 181, so no points are gained; it is a missed turn, not a trick. No B seed ever used
 full gas.
+
+## Plan: retraining with recipe "beta" (director's OK 2026-10-19; rule written before training)
+
+**Director's decisions (2026-10-19)**
+1. Use the Petrazzini recipe ("beta", see "Research" below) for A and B.
+2. Agent B keeps the same random colors. If B seed 42 still can't drive, don't stop: switch B automatically to
+   Slaoui's method and carry on with the plan.
+3. Delete the old done-file at the start (it was already gone when I looked), and write a new one at
+   `logs/training_done.flag` only when this whole plan ends.
+
+**What I built (all settings in config.py)**
+- **One pedal** (`racecar/envs.py`, `OnePedal`): the AI outputs steering and one pedal (above 0 = gas, below 0 = brake).
+  A wrapper turns that into the game's steer/gas/brake. Scores are measured on the unchanged game.
+- **Beta policy** (`racecar/beta_policy.py`): alpha and beta are 1 + softplus, as in the paper. The best action is the Beta mean.
+- **PPO settings from the paper (Table II):**
+  - Learning rate 2.5e-4, falling linearly to 0.
+  - Clip 0.1, 10 epochs, minibatch 64, 500 steps per simulator, 8 simulators.
+  - Gamma 0.99, GAE 0.95, entropy 0.01, value 0.5.
+  - 5M decisions.
+- **Network (the paper's layout):** a shared image network (3 convolution layers + 512 units), then two 512-unit layers
+  for driving and one for the value estimate.
+- **Not stated in the paper, so Stable-Baselines3 defaults:** gradient clipping 0.5, advantages normalized per minibatch,
+  orthogonal starting weights, ReLU.
+- **Kept from this project:** color input, 64x64 with 2 stacked images, frame skip 2, reward rescaling during learning.
+- **Slaoui's method (used only if the rule switches B):**
+  - The races are in normal colors. After every decision the same moment is drawn again in a random color scheme
+    from B's color range, one scheme per race (as in their code).
+  - The AI acts on the normal image only.
+  - The loss gets 50 x the mean squared difference between the network's shared 512 features for the image and for
+    its copy (their lambda 50; their network shares all hidden layers, so this is their "last hidden layer").
+  - One difference from their code: they recolor only the exact background pixels. Here the whole scene is redrawn
+    (road, background, grass), because B's random colors change all three.
+- **Evaluations save the game's 3 controls**, also for one-pedal agents, so replays and driving checks work unchanged.
+
+**Checks, all passed before any training** (`scripts/test_beta_recipe.py`, 24/24):
+- The pedal mapping is right.
+- The Beta's probabilities, entropy and mean match torch's Beta.
+- Drawing the copy never changes the game, and the copy is pixel-identical to the same race really played in those colors.
+- A Slaoui agent's actions don't change when its copies do.
+- With the penalty at 0, the Slaoui training is bit-for-bit SB3's PPO.
+- Replays of recorded races reproduce every score exactly.
+- **Exact resume after a hard kill (kill -9):** for recipe "beta" (A) and Slaoui's method (B), the resumed run ended
+  with identical weights, validation results and training races as an uninterrupted run.
+
+**Measured speed (one run alone, 40,000 decisions each):**
+
+| Recipe | Decisions/s | Hours per 5M-decision run |
+|---|---|---|
+| A, recipe "beta" | 231 | 6.0 |
+| B, recipe "beta" (random colors) | 227 | 6.1 |
+| B, Slaoui | 168 | 8.3 |
+
+Plus about 10 minutes of validation checks per run.
+
+**Miss:** I estimated 5 h per run (about 32 h in total). Measured, it is about 6.2 h. Likely reason: twice as many,
+smaller learning steps and a bigger network than the old recipe; Slaoui also draws every image twice.
+**New total: about 40 h if B keeps plain random colors, about 52 h if B switches to Slaoui. Over 8 h.** A single
+Slaoui run is over 8 h too.
+
+**Judging rule (fixed now, before any training with the new recipe)**
+- Every judgment uses the 100 validation tracks (5000-5099), normal colors, final copies, best action
+  (`scripts/plan_gate.py`; decisions logged in `results/beta_plan/gates.md`).
+- Unseen colors and the analysis tracks are not looked at before stage 4. Test tracks: never.
+1. **A seed 42:** mean at least 500. Otherwise stop: the recipe or my code doesn't work here.
+2. **B seed 42 "can drive":** mean at least 100. This is the "still can't drive" line shown to the director in the draft.
+   - Under 100: B switches to Slaoui's method for all three seeds, and B42 is trained again that way.
+   - If that B42 is also under 100: stop and report.
+   - Only one switch. B seeds 142 and 242 are not judged separately.
+3. **Two seeds (42 + 142), the new recipe is adopted if all hold:**
+   - B's two-seed mean is at least 300.
+   - Per track, B's two-seed mean beats the old B (recipe "entropy", same seeds): paired Wilcoxon, two-sided,
+     p < 0.05, positive mean difference.
+   - A's two-seed mean is at most 50 below the old A's (475.7), so at least 425.7.
+
+   Otherwise: stop and report.
+4. **Then:** seeds 242, the analysis-track evaluations (normal and unseen colors), and the unchanged Step 3 test plan
+   (4 paired tests, Holm) on the new agents (`results/step3_beta`). The speed check runs for every new agent.
+- The 800 pass mark is reported per seed and not changed. The old agents stay as the "before" results.
+- If B ends up with Slaoui's method, "Agent B" means trained on normal colors with recolored copies and the penalty.
+  The Step 3 report must say so.
+
+**Running it:** `scripts/run_plan.sh` runs everything above unattended through the job queue (one job at a time,
+low priority, memory guard).
+- Log: `logs/plan.log`. Results are committed automatically after each stage (only `results/`).
+- It writes the done-file when the plan ends: finished, stopped by the rule, or the queue gave up.
+- Change to the memory waits: a job's first start now needs 5.5 GB free and steady for 1 minute (was 10 minutes, which
+  would add over 3 hours across more than 20 jobs). A restart after a memory stop still needs 10 minutes.
 
 ## Research: what has reached ~900 on CarRacing (2026-10-19; nothing trained)
 The director chose option (a), to fix the training together with the slow driving and retrain once, and asked me to

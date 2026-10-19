@@ -86,6 +86,31 @@ class TwoSeedCarRacing(CarRacing):
         info.update(self._progress_info(off_track=False))
         return obs, info
 
+    def render_in_colors(self, color_seed):
+        """
+        The current moment drawn again in another color scheme (Slaoui's recolored copy). Same image size and
+        geometry as the observation. Only the colors change; the game itself is untouched.
+        Road tiles keep their slight shading (Gymnasium adds 0-5 to each tile's color; driven-over tiles lose it).
+        The dashboard shows the score as it was when the observation was drawn (the game subtracts the frame's
+        -0.1 only after drawing).
+        """
+        road, bg, grass = random_colors(color_seed)
+        saved = self.road_color, self.bg_color, self.grass_color, self.road_poly, self.reward
+        self.reward = self._reward_shown
+        # Road tiles carry numpy colors (road color + shading); the red/white kerbs are fixed tuples.
+        self.road_poly = [(poly, road + (color - self.road_color)) if isinstance(color, np.ndarray) else (poly, color)
+                          for poly, color in self.road_poly]
+        self.road_color, self.bg_color, self.grass_color = road, bg, grass
+        try:
+            return self._render("state_pixels")
+        finally:
+            self.road_color, self.bg_color, self.grass_color, self.road_poly, self.reward = saved
+
+    def _render(self, mode):
+        if mode == "state_pixels":
+            self._reward_shown = self.reward   # the score printed on this image (see render_in_colors)
+        return super()._render(mode)
+
     def step(self, action):
         obs, reward, terminated, truncated, info = super().step(action)
         x, y = self.car.hull.position
@@ -110,6 +135,64 @@ gym.register(
     max_episode_steps=config.MAX_EPISODE_FRAMES,
     reward_threshold=config.SOLVED_SCORE,
 )
+
+
+def one_pedal_to_game(action):
+    """[steer, pedal] -> the game's [steer, gas, brake]: pedal > 0 is gas, pedal < 0 is brake."""
+    action = np.asarray(action, dtype=np.float32)
+    pedal = action[..., 1]
+    return np.stack([action[..., 0], np.maximum(pedal, 0), np.maximum(-pedal, 0)], axis=-1).astype(np.float32)
+
+
+class OnePedal(gym.ActionWrapper):
+    """
+    Recipe "beta" (Petrazzini & Antonelo 2021): gas and brake merged into one pedal, so the AI outputs 2 numbers.
+    Sits on top of the Monitor, so official scores are measured on the unchanged game.
+    """
+
+    def __init__(self, env):
+        super().__init__(env)
+        self.action_space = gym.spaces.Box(-1.0, 1.0, shape=(2,), dtype=np.float32)
+
+    def action(self, action):
+        return one_pedal_to_game(action)
+
+
+class RecoloredCopy(gym.Wrapper):
+    """
+    Slaoui et al. 2020: next to each image, the same moment drawn in a random color scheme (3 extra channels),
+    shrunk exactly like the image (OpenCV's shrink handles at most 4 channels, so this sits after it).
+    One color scheme per race, drawn from Agent B's training color range with the simulator's color-seed
+    stream, so exact resumes replay it. The AI acts on the normal image only (racecar.beta_policy).
+    recolor=False (evaluation): the copy is just the normal image again; the AI ignores it, so nothing
+    is drawn twice.
+    """
+
+    def __init__(self, env, recolor: bool):
+        super().__init__(env)
+        self.recolor = recolor
+        self.copy_color_seed = None
+        h, w, c = env.observation_space.shape
+        self.observation_space = gym.spaces.Box(0, 255, shape=(h, w, 2 * c), dtype=np.uint8)
+
+    def reset(self, *, seed=None, options=None):
+        obs, info = self.env.reset(seed=seed, options=options)
+        if self.recolor:
+            picker = self.env.unwrapped._color_seed_picker
+            assert picker is not None, "recolored copies need a seeded simulator"
+            self.copy_color_seed = int(picker.integers(*config.TRAIN_COLOR_SEED_RANGE))
+        return self._with_copy(obs), info
+
+    def step(self, action):
+        obs, reward, terminated, truncated, info = self.env.step(action)
+        return self._with_copy(obs), reward, terminated, truncated, info
+
+    def _with_copy(self, obs):
+        if not self.recolor:
+            return np.concatenate([obs, obs], axis=-1)
+        copy_ = self.env.unwrapped.render_in_colors(self.copy_color_seed)
+        copy_ = cv2.resize(copy_, (config.OBS_SIZE, config.OBS_SIZE), interpolation=cv2.INTER_AREA)   # = ResizeObservation
+        return np.concatenate([obs, copy_], axis=-1)
 
 
 class FrameSkip(gym.Wrapper):
@@ -201,12 +284,21 @@ class ResumableEnv(gym.Wrapper):
         return obs
 
 
-def add_ai_view_wrappers(env, grayscale: bool, scheduled: bool = False, resumable: bool = False):
-    """Frame skip -> shrink to 64x64 -> (optional) grayscale. Same order as the Zoo."""
+def add_ai_view_wrappers(env, grayscale: bool, scheduled: bool = False, resumable: bool = False,
+                         one_pedal: bool = False, copies: str | None = None):
+    """
+    (optional) one pedal -> frame skip -> shrink to 64x64 -> (optional) grayscale -> (optional) recolored copy.
+    Same order as the Zoo. copies: None, "recolor" (Slaoui training) or "duplicate" (evaluating a Slaoui agent).
+    """
+    if one_pedal:
+        env = OnePedal(env)
     env = FrameSkip(env, config.FRAME_SKIP)
     env = ResizeObservation(env, (config.OBS_SIZE, config.OBS_SIZE))
     if grayscale:
         env = GrayscaleObservation(env, keep_dim=True)
+    if copies is not None:
+        assert not grayscale and copies in ("recolor", "duplicate")
+        env = RecoloredCopy(env, recolor=copies == "recolor")   # after frame skip: one extra drawing per decision
     if scheduled:
         env = ScheduledResets(env)
     if resumable:
@@ -214,7 +306,8 @@ def add_ai_view_wrappers(env, grayscale: bool, scheduled: bool = False, resumabl
     return env
 
 
-def make_env(color_mode="normal", continuous=True, grayscale=False, render_mode=None, ai_view=True):
+def make_env(color_mode="normal", continuous=True, grayscale=False, render_mode=None, ai_view=True,
+             one_pedal=False, copies=None):
     """One environment. ai_view=False returns the raw 96x96 env (with the time limit)."""
     env = gym.make(config.ENV_ID, color_mode=color_mode, continuous=continuous, render_mode=render_mode)
-    return add_ai_view_wrappers(env, grayscale) if ai_view else env
+    return add_ai_view_wrappers(env, grayscale, one_pedal=one_pedal, copies=copies) if ai_view else env
