@@ -25,7 +25,12 @@ Mean score on the 100 analysis tracks (final copies; a full lap is worth about 9
   The seeds disagree, too: A42 beats B42 on unseen colors. Details: "Step 3 results".
 - So **the project question is still open**: it can't be answered until B can drive.
 
-**What I need from you**
+**Update 2026-10-19 (research done, nothing trained):** the director chose (a), combined with the slow-driving fix,
+and asked for an evidence-based recipe. Research and recommendation: "Research: what has reached ~900" below.
+**Waiting for the director's OK** on the recommended recipe (PPO with a Beta policy and one pedal, about 32 h for all
+six runs). The list below is the earlier question, kept for the record.
+
+**What I needed from you (answered 2026-10-19: option a)**
 1. **How to get Agent B to learn** (this now blocks the project question). Likely reason (untested): the training updates
    are very unstable for A and B alike (approx_kl 0.3-0.9, clip fraction about 0.7, several times typical PPO values). A
    copes on the easy task; B doesn't. Options:
@@ -38,7 +43,7 @@ Mean score on the 100 analysis tracks (final copies; a full lap is worth about 9
      what "Agent B" means, but it is a common form of domain randomization.
 2. **The slow-driving fix (D1-D3 in "Plan: fixing the slow driving")** is still open. Best decided together with item 1:
    either fix means retraining A and B, so one combined trial saves a full round of training.
-3. **Optional:** freeing about 2 GB on Windows lets two jobs run at once, about twice as fast. Pausing another app worked yesterday.
+3. **Optional:** freeing about 2 GB on Windows lets two jobs run at once, about twice as fast. **Correction (2026-10-19): measured, it is only about 15% faster** (see "Research" below). Pausing another app worked yesterday.
 4. **Reminder:** pause Windows updates before long runs.
 
 ## Step 1: Setup (done, 2026-10-16)
@@ -453,6 +458,87 @@ across the grass. B242 often makes a long, slow arc inside the track's loop. Tha
 races are flagged as "possible shortcuts": the nearest point of the road jumps while the car crosses the grass.
 These races score at most 181, so no points are gained; it is a missed turn, not a trick. No B seed ever used
 full gas.
+
+## Research: what has reached ~900 on CarRacing (2026-10-19; nothing trained)
+The director chose option (a), to fix the training together with the slow driving and retrain once, and asked me to
+base the recipe on published evidence instead of patching the current one. Full tables with sources:
+`results/research/carracing_literature.md`. Most published scores are on CarRacing-v0. Reward, time limit and the 900
+mark are the same as in v3, but lap rules and test setups differ, so they are reference points, not exact comparisons.
+
+**Two misses of mine (reported, not hidden):**
+- In Step 1 I took the RL Zoo's settings without checking the Zoo's own benchmark for them. **The Zoo reports 153.9 for
+  exactly this PPO recipe on CarRacing** (4M steps, one run, best-action evaluation, grayscale). Our seeds scored 170 to 782,
+  so seed 42 was a lucky draw, not the norm.
+- The summary said two trainings at once would run "about twice as fast". Measured: two at once took 5.7-6.1 h for
+  two runs, versus 3.4-3.5 h for one alone, so only about 15% faster.
+
+**What reached about 900, and what it needed**
+- **PPO with a "Beta" policy and one pedal (gas and brake merged).** This is the best-supported PPO result.
+  - Petrazzini & Antonelo 2021 trained 5 seeds for 5M steps with the normal reward and no tricks.
+    - Sampled actions: all 5 seeds scored above 900.
+    - The AI's best action (how we evaluate): 816 on average.
+    - The same settings with a Gaussian policy (the kind we use): 370 with the best action.
+  - The paper says that without merging gas and brake, "learning to control the vehicle would not take place."
+  - Three GitHub projects with the same core reach 860-909. Some of those use tricks, such as cutting a race short
+    during the test itself, which inflate the score.
+- **PPO with memory (an LSTM)** from the same RL Zoo: 862.5 (best action, one run, 4M steps, v0). A community copy on
+  v3 reports only 385.
+- **DQN with 5 buttons:** about 905. These runs used tricks at test time or trained on 3 fixed tracks. Smooth
+  controls were decided in Step 2, so this doesn't fit.
+- **Evolution, world models and attention agents:** 903-914. They need hundreds of millions to billions of game
+  frames, which on this PC is about 2.5 days (genetic algorithm) up to weeks or months per run.
+- **Colors.** Slaoui et al. 2020 trained PPO with background colors drawn from the full color range (5 seeds):
+  **"the randomized agent ... fail[s] to learn"** (-17, versus 554 for a normal-color agent). That is the same thing
+  that happened to our Agent B.
+  - What worked for them: train on normal colors and show the AI a recolored copy of each image. The AI is penalized
+    when it sees the two differently. Result: 640 on normal colors and 553 on all colors, versus 554 and 60 for a
+    plain normal-color agent.
+  - Tang et al. 2020: a PPO driver trained on normal colors fell from 865 to 505 when the colors shifted slightly, the
+    same weakness Agent A shows.
+- **Likely reasons for our weak runs (from this evidence, untested here):**
+  - The Gaussian policy plus clipping makes braking rare.
+  - With a Gaussian policy, the "best action" can drive much worse than sampled actions (370 vs 890 in Petrazzini).
+  - The update steps are far larger than normal. The 900-level runs use clip 0.1 and a lower minibatch size.
+
+**Recommended recipe (proposed; nothing starts without the director's OK):** the Petrazzini settings, for A and B alike.
+- Controls: steering plus one pedal (above 0 = gas, below 0 = brake). A thin wrapper turns this into the game's 3
+  controls. Game, reward and score are unchanged.
+- Action randomness: a Beta distribution, which always stays inside the allowed range, instead of the Gaussian with gSDE.
+  The "best action" is the Beta's mean, as in the paper.
+- PPO settings (the paper's):
+  - Learning rate 2.5e-4, shrinking linearly to 0.
+  - Clip 0.1, 10 epochs, minibatch 64.
+  - 500 steps per simulator per update, 8 simulators.
+  - Gamma 0.99, GAE 0.95, entropy 0.01, value 0.5.
+  - 3 convolution layers plus 512 units.
+  - **5M decisions** (the paper's 5M steps).
+- Kept from this project, where the paper differs:
+  - **Color input** (Step 1 decision; every ~900 result used grayscale, so this part is untested).
+  - **64x64 with 2 stacked frames.** The paper used 84x84 with 4. Ours saves about 1 GB of memory per training, and the
+    Zoo's 862 result used 64x64 with 2 frames.
+  - Frame skip 2, and reward rescaling during learning. Rescaling doesn't change scores.
+  - Evaluation with the best action. Based on the paper, A should land around 800, right at the pass mark, which
+    is not changed.
+- Agent B: the same recipe with the same random colors as before, so the project question stays the same. Slaoui's
+  result says plain random colors may still fail. The fallback is their method, which would change what "Agent B"
+  means, so that is the director's call.
+- Time (one run at a time): about 5 h per run (estimate: 5M decisions plus more learning steps than now; measured in a
+  short test first).
+  - Code and tests: about 30 min of computing.
+  - A42 + B42: about 10 h. A142 + B142: about 10 h. A242 + B242: about 10 h.
+  - Evaluations, driving checks and the Step 3 tests: about 2 h.
+  - **Total about 32 h. Over 8 h.**
+- Draft judging rule, to be fixed in full before training. Validation tracks only, normal colors, final copies. Unseen
+  colors are not looked at before the final Step 3 test.
+  1. After A42 and B42:
+     - If A42 is under 500, the recipe or my code doesn't work here: stop.
+     - If B42 is under 100 (still can't drive), stop and ask about B.
+  2. After seeds 42 and 142, the new recipe is adopted if both hold:
+     - B's two-seed mean is at least 300 and significantly above the current B (paired Wilcoxon, p < 0.05).
+     - A's two-seed mean is no more than 50 below the current A (475.7).
+
+    Otherwise: stop and report.
+  3. Then seeds 242, the evaluations, and the unchanged Step 3 tests on the new agents.
 
 ## Slow driving: diagnosis (no training; plan for a fix follows once the diagnosis is done)
 The director asked for a plan to fix the slow driving, with the judging rule written in advance, and **no
