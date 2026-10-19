@@ -3,86 +3,43 @@
 Race-car AI that learns to drive from pixels only (Gymnasium CarRacing-v3, PPO),
 testing whether domain randomization (random colors in training) makes it robust to unseen colors.
 
-## Morning summary (night of 2026-10-17/18; written 05:30, updated Oct 19 01:50)
+## Summary (updated 2026-10-19 03:20)
 
-**Finished overnight**
-- **Step 2 is done** (details in "Step 2 results" below). Agent A, recipe `entropy`, final copies, normal colors:
+**Finished:** Step 2 (Agent A, 2026-10-18 05:25) and **Step 3, the color test (2026-10-19 03:05)**. All training in
+the plan is done and nothing of mine is running except the small memory guard and memory logger. The flag file was written at 03:05.
 
-  | Agent A | Validation (100 tracks) | Analysis (100 tracks) | Laps (strict), analysis | Off track, analysis |
-  |---|---|---|---|---|
-  | Seed 42 | 781.8 | 780.7 | 12% | 4% |
-  | Seed 142 | 169.6 | 152.3 | 0% | 0% |
-  | Seed 242 | 644.1 | 642.0 | 0% | 0% |
-  | Mean of seeds | 531.8 | 525.0 | 4% | 1.3% |
+Mean score on the 100 analysis tracks (final copies; a full lap is worth about 900):
 
-  **All three miss the 800 pass mark**; none is solved (900). The seeds differ a lot: seed 142 creeps along at a
-  quarter of seed 42's speed. All three drive at one steady speed and never slow down for corners. No point-farming tricks.
-- **Step 3, first part done:** Agent A on unseen colors (analysis tracks) collapses for every seed:
-  42: 780.7 -> 89.7, 142: 152.3 -> -87.1, 242: 642.0 -> 1.5 (mean 525.0 -> 1.4). Seed 42 drives off the map at the
-  first corner in 64% of races; seeds 142 and 242 barely move. (No statistical test yet: the written plan compares A
-  with B, which needs B's results.)
-- **Step 3 plan and test rules written down before any B result** (Wilcoxon per track, Holm over 4 tests).
-- **Slow-driving diagnosis** (no training): the car cruises at the speed a lap barely needs, faster before sharp
-  turns than on straights, and almost never brakes. Giving it more gas makes it crash more (1.5x gas: -101 points,
-  +12 points of off-track races). A **plan with two candidate fixes and a judging rule fixed in advance** is in
-  "Plan: fixing the slow driving". Not started.
+| Seed | A, normal colors | A, unseen colors | B, normal colors | B, unseen colors |
+|---|---|---|---|---|
+| 42 | 780.7 | 89.7 | -22.0 | -10.5 |
+| 142 | 152.3 | -87.1 | 2.0 | 25.7 |
+| 242 | 642.0 | 1.5 | 78.0 | 79.5 |
+| **Mean of seeds** | **525.0** | **1.4** | **19.3** | **31.6** |
 
-**Running now**
-- **Agent B seed 42** (random colors, recipe `entropy`) **is not learning to drive.** On the 20 normal-color check
-  tracks it scores -40 to -10, covering about 8% of the track; at the same point A42 was at 720-820. Its training races (random
-  colors) rose to a mean of about 120 by 500k decisions, then slid to -5 by 1.75M. Probably not a code bug: it
-  drove 900+ on a few early races. Details: "Agent B training (2026-10-18)". Nothing has been changed; the plan
-  runs as written.
-- **07:06: the memory guard stopped B seed 42** (Windows 2.6 GB available; nothing lost but 1 minute). New rule,
-  written before use: a job restarts once Windows has 5.5 GB available for 10 minutes. A queue
-  (`scripts/job_queue.sh`) now runs everything one at a time: B42 to the end (about 2.2 h of training left),
-  B42's evaluation, then B142 and B242 (about 4.5 h each), their evaluations, and the A-vs-B tests.
-- **07:28: stopped again**, 7 minutes after the queue restarted it (Windows went from 8.7 GB available to 3.0 GB;
-  my training uses about 2 GB, so the other apps grew by about 4 GB). **Since then B has been waiting.**
-  From 07:28 to 15:05, Windows mostly had only 2.0-3.5 GB available even with none of my jobs running
-  (committed memory 45 of 48.5 GB at 15:05); 5.5 GB was never held for 10 minutes. B42 is safe at its
-  1,753,088 checkpoint and restarts by itself once memory allows.
-- **15:52: B42 restarted** after the director cleared WSL's cache and paused another app. **17:49: B42 finished;
-  final 20-track check -20.0** (it never learned). Next in the queue: B42's evaluation, then B142 and B242.
-- **18:03: B42 evaluated** on the 100 analysis tracks: **normal colors -22.0, unseen colors -10.5** (A42: 780.7 and
-  89.7). It covers 8-9% of the track either way, no laps. No test yet: the plan tests the mean of 3 seeds.
-- **18:29: B42 driving checks done** (replays 100/100 on both color sets). With normal colors it follows the road
-  for about 3 s, drives straight on at the first corner, crosses the grass and **stops just before the map's edge**,
-  where it sits braking until time runs out (all wheels on grass 81% of the time, brakes on 65% of decisions,
-  mean speed 10.6 vs 51 for A42). Unseen colors: the same pattern (speed 16.9, grass 80%); its best race (304) followed
-  the road for 40% of the lap, then went straight on at a sharp turn. The 8 races flagged as possible shortcuts
-  all score 2-304 and end on the grass after missing a turn, not shortcuts.
-  **Likely reason (untested):** leaving the map costs -100, and stopping on the grass avoids that, so B learned that
-  much and no more.
-- **22:06: B seed 142 finished** (18:39-22:06, 3.4 h, no interruptions). It also never learned to drive:
-  20-track checks stayed between -18 and +8 the whole way (final copy **9.2**, covering 11% of the track, no laps).
-  Unlike B42 it didn't fall apart; it improved very slowly. Its training races averaged -30 in the first 500k
-  decisions and +17.5 in the last 500k (best 312); no training race reached 900. Next: B seed 242 training.
-- **01:45 (Oct 19): B seed 242 finished** (22:16-01:45, 3.5 h, no interruptions). **All B training is done.**
-  B242 did best of the three but is still far from driving a lap. Its 20-track checks peaked at 130 (1.25M), dropped to 40
-  (2.5M) and ended at **83.4** (final copy, covering 18% of the track, no laps). Next: B142/B242 evaluations,
-  driving checks, then the Step 3 tests.
-- **02:03: B142 and B242 evaluated** on the 100 analysis tracks. B142: normal colors **2.0**, unseen **25.7**.
-  B242: normal **78.0**, unseen **79.5**. No laps for either. With B42 (-22.0 / -10.5), every B seed is far below
-  A on normal colors. No test yet: the written tests run after the driving checks.
-- One job at a time: with the PC's other apps open, Windows had only 2.3-6 GB of memory available. Your 3 GB rule
-  stopped my work three times: I stopped seed 242's training by hand at 23:15 (resumed exactly at 02:00), and the memory
-  guard (`scripts/memory_guard.py`) stopped an evaluation at 05:07 and B42 at 07:06. All my jobs run at low CPU
-  priority (nice 10).
+- **Agent A** drives on normal colors (no seed reaches the 800 pass mark) and **collapses on unseen colors**
+  (significant paired test, worse on 99 of 100 tracks).
+- **Agent B never learned to drive**, on any colors: it misses the first real bend and ends up on the grass. No laps.
+- **The main test (B minus A, unseen colors) is +30.2 and significant, but it does not show that random colors help.**
+  Both agents fail on unseen colors, and B just fails more gently (most of the gap is A driving off the map, -100 per race).
+  The seeds disagree, too: A42 beats B42 on unseen colors. Details: "Step 3 results".
+- So **the project question is still open**: it can't be answered until B can drive.
 
 **What I need from you**
-1. **The slow-driving fix (D1-D3 in the plan):** run the fix trial or not, which candidates, which seeds. Note: if a
-   fix is adopted, A and B both have to be retrained with it, and the B runs going on now become a "before" result.
-   If you want the trial first, I can pause B (it resumes exactly later).
-2. **Agent B (new):** B42 may finish far below A. If all B seeds fail like this, the main question
-   ("does B handle unseen colors better?") gets a weak answer: B would be worse than A on normal colors and both would fail on unseen ones.
-   Options: **(a) carry on as written** (running now; costs only PC time; B142/B242 may do better, as A's seeds
-   varied from 152 to 781); **(b) after B42, pause B** and first fix the unstable training updates for A and B
-   together (this could share one trial with the slow-driving fix); **(c) train B longer**, but then A and B
-   differ in two ways unless A is retrained as long too. **My recommendation: (a) for now**, and decide on (b)
-   together with item 1, since a fix that is adopted means retraining A and B anyway.
-3. **Optional:** freeing about 2 GB of memory on Windows would let two jobs run at once (about twice as fast).
-4. **Reminder:** pause Windows updates while runs go overnight (it restarted the PC at 01:59 the night before).
+1. **How to get Agent B to learn** (this now blocks the project question). Likely reason (untested): the training updates
+   are very unstable for A and B alike (approx_kl 0.3-0.9, clip fraction about 0.7, several times typical PPO values). A
+   copes on the easy task; B doesn't. Options:
+   - **(a) Stabilize the training first (my recommendation).** Try one or two changes on B seed 42 (for example, a lower
+     learning rate, or plain exploration noise instead of gSDE), judged on validation tracks by a rule written down before running.
+     Then retrain A and B with the winner. About 3.5 h per trial run, then about 21 h for six runs (one at a time).
+   - **(b) Train longer** (for example, 8M decisions for A and B). About twice the time (about 42 h for six runs). B42
+     fell apart after learning a little, so extra time alone may not help.
+   - **(c) Milder random colors** (colors closer to normal, or random colors in only some training races). It changes
+     what "Agent B" means, but it is a common form of domain randomization.
+2. **The slow-driving fix (D1-D3 in "Plan: fixing the slow driving")** is still open. Best decided together with item 1:
+   either fix means retraining A and B, so one combined trial saves a full round of training.
+3. **Optional:** freeing about 2 GB on Windows lets two jobs run at once, about twice as fast. Pausing another app worked yesterday.
+4. **Reminder:** pause Windows updates before long runs.
 
 ## Step 1: Setup (done, 2026-10-16)
 
@@ -139,7 +96,7 @@ and lock-step stepping costs about another 30%.
 1. AI input: color (recommended) or grayscale (Zoo default).
 2. "Lap completed": your strict 100%-of-tiles rule vs Gymnasium's built-in rule (>95% of tiles + crossing the start line).
 
-## Step 2: First driver (in progress)
+## Step 2: First driver (done 2026-10-18)
 
 ### Decisions (from the director)
 - AI input: color. Controls: continuous (steer, gas, brake), as in the Zoo recipe.
@@ -417,6 +374,85 @@ training score matched the stopped run's: -16.4).
 recovered. Its real result is the evaluation on the 100 analysis tracks, which runs next.
 Bookkeeping note: the DONE line says "1.939 h of training", but that counts only the last session. Sessions that
 were stopped never record their hours. B42 really trained about 3.8 h: 05:23-07:06, 07:21-07:28 and 15:52-17:49.
+
+**Timeline of the B runs** (moved here from the summary):
+- **07:06: the memory guard stopped B seed 42** (Windows 2.6 GB available; nothing lost but 1 minute). New rule,
+  written before use: a job restarts once Windows has 5.5 GB available for 10 minutes. A queue
+  (`scripts/job_queue.sh`) now runs everything one at a time: B42 to the end (about 2.2 h of training left),
+  B42's evaluation, then B142 and B242 (about 4.5 h each), their evaluations, and the A-vs-B tests.
+- **07:28: stopped again**, 7 minutes after the queue restarted it (Windows went from 8.7 GB available to 3.0 GB;
+  my training uses about 2 GB, so the other apps grew by about 4 GB). **Since then B has been waiting.**
+  From 07:28 to 15:05, Windows mostly had only 2.0-3.5 GB available even with none of my jobs running
+  (committed memory 45 of 48.5 GB at 15:05); 5.5 GB was never held for 10 minutes. B42 is safe at its
+  1,753,088 checkpoint and restarts by itself once memory allows.
+- **15:52: B42 restarted** after the director cleared WSL's cache and paused another app. **17:49: B42 finished;
+  final 20-track check -20.0** (it never learned). Next in the queue: B42's evaluation, then B142 and B242.
+- **18:03: B42 evaluated** on the 100 analysis tracks: **normal colors -22.0, unseen colors -10.5** (A42: 780.7 and
+  89.7). It covers 8-9% of the track either way, no laps. No test yet: the plan tests the mean of 3 seeds.
+- **18:29: B42 driving checks done** (replays 100/100 on both color sets). With normal colors it follows the road
+  for about 3 s, drives straight on at the first corner, crosses the grass and **stops just before the map's edge**,
+  where it sits braking until time runs out (all wheels on grass 81% of the time, brakes on 65% of decisions,
+  mean speed 10.6 vs 51 for A42). Unseen colors: the same pattern (speed 16.9, grass 80%); its best race (304) followed
+  the road for 40% of the lap, then went straight on at a sharp turn. The 8 races flagged as possible shortcuts
+  all score 2-304 and end on the grass after missing a turn, not shortcuts.
+  **Likely reason (untested):** leaving the map costs -100, and stopping on the grass avoids that, so B learned that
+  much and no more.
+- **22:06: B seed 142 finished** (18:39-22:06, 3.4 h, no interruptions). It also never learned to drive:
+  20-track checks stayed between -18 and +8 the whole way (final copy **9.2**, covering 11% of the track, no laps).
+  Unlike B42 it didn't fall apart; it improved very slowly. Its training races averaged -30 in the first 500k
+  decisions and +17.5 in the last 500k (best 312); no training race reached 900. Next: B seed 242 training.
+- **01:45 (Oct 19): B seed 242 finished** (22:16-01:45, 3.5 h, no interruptions). **All B training is done.**
+  B242 did best of the three but is still far from driving a lap. Its 20-track checks peaked at 130 (1.25M), dropped to 40
+  (2.5M) and ended at **83.4** (final copy, covering 18% of the track, no laps). Next: B142/B242 evaluations,
+  driving checks, then the Step 3 tests.
+- **02:03: B142 and B242 evaluated** on the 100 analysis tracks. B142: normal colors **2.0**, unseen **25.7**.
+  B242: normal **78.0**, unseen **79.5**. No laps for either. With B42 (-22.0 / -10.5), every B seed is far below
+  A on normal colors. No test yet: the written tests run after the driving checks.
+
+## Step 3 results: color test (finished 2026-10-19 03:05)
+Run exactly as planned: final copies, 100 analysis tracks, same color seeds for A and B, the four tests fixed on
+2026-10-17 23:20. Full output: `results/step3/color_test.md`, chart `results/step3/normal_vs_unseen.png`.
+
+| Final copies, analysis tracks | A normal | A unseen | B normal | B unseen |
+|---|---|---|---|---|
+| Seed 42 | 780.7 | 89.7 | -22.0 | -10.5 |
+| Seed 142 | 152.3 | -87.1 | 2.0 | 25.7 |
+| Seed 242 | 642.0 | 1.5 | 78.0 | 79.5 |
+| **Mean of seeds** | **525.0** | **1.4** | **19.3** | **31.6** |
+| Track covered (mean) | 62.6% | 11.4% | 12.0% | 13.2% |
+| Laps (strict) | 4% | 0.3% | 0% | 0% |
+| Left the map | 1.3% | 23% | 0.3% | 0.7% |
+
+**The four tests** (per track, mean of 3 seeds, Wilcoxon, Holm over 4; all four significant):
+1. A, unseen minus normal: **-523.6** (95% CI -558.9 to -487.3), worse on 99 of 100 tracks; Holm p = 1.6e-17.
+2. **Main question, unseen colors, B minus A: +30.2** (95% CI +3.9 to +54.4), B better on 76 tracks; Holm p = 0.0005.
+3. Normal colors, B minus A: **-505.7** (95% CI -528.7 to -482.2), B worse on all 100 tracks; Holm p = 1.6e-17.
+4. B, unseen minus normal: **+12.2** (95% CI +3.5 to +21.1), better on 61 tracks; Holm p = 0.0096.
+
+**What this does and does not show (plain reading):**
+- **Proven (significant paired tests): Agent A collapses on unseen colors**, from 525 to about 1.
+- **The main test comes out for B, but it does not show that random colors made a robust driver.** B scores 30 points more than A
+  on unseen colors, but neither agent can drive on them (B 31.6, A 1.4, out of about 900 for a full lap). B also can't
+  drive on normal colors (19.3 vs A's 525): **B never learned to drive** (see "Agent B training" above).
+  B's lead mostly means it fails more gently.
+- About three quarters of B's lead comes from A leaving the map. A did so in 69 of its 300 unseen-color races (-100
+  each, mostly seed 42), and B in 2. With that -100 taken out, A averages 24.4 and B 32.2. This is an extra check,
+  not one of the written tests.
+- **The seeds disagree.** On unseen colors, A42 beats B42 by 100 points, while B142 and B242 beat A142 and A242 by
+  113 and 78. The tests compare these six drivers across tracks; with 3 training runs per agent they say nothing
+  about how a new training run would do.
+- Test 4 (B a bit better on unseen than on normal colors). **Likely reason (untested):** normal colors have little
+  contrast between road and grass (they differ in one color channel), and these were among B's worst schemes in training.
+- **Verdict on the project question:** the experiment ran as planned, but it can't answer "does domain randomization
+  help?" until B learns to drive. That needs the director's decision (morning summary).
+
+**How B drives (driving checks, all replays 100/100):** all three B seeds follow the road slowly for a few seconds,
+miss the first real bend and end up on the grass (all wheels off the road 40-81% of the time; mean speed 11-18 vs
+36-51 for A). B42 then parks just before the map's edge and brakes until time runs out. B142 and B242 roll slowly
+across the grass. B242 often makes a long, slow arc inside the track's loop. That arc is why 80 of its normal-color
+races are flagged as "possible shortcuts": the nearest point of the road jumps while the car crosses the grass.
+These races score at most 181, so no points are gained; it is a missed turn, not a trick. No B seed ever used
+full gas.
 
 ## Slow driving: diagnosis (no training; plan for a fix follows once the diagnosis is done)
 The director asked for a plan to fix the slow driving, with the judging rule written in advance, and **no
