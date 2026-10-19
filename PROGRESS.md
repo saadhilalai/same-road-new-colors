@@ -62,6 +62,9 @@ testing whether domain randomization (random colors in training) makes it robust
   B242 did best of the three but is still far from driving a lap. Its 20-track checks peaked at 130 (1.25M), dropped to 40
   (2.5M) and ended at **83.4** (final copy, covering 18% of the track, no laps). Next: B142/B242 evaluations,
   driving checks, then the Step 3 tests.
+- **02:03: B142 and B242 evaluated** on the 100 analysis tracks. B142: normal colors **2.0**, unseen **25.7**.
+  B242: normal **78.0**, unseen **79.5**. No laps for either. With B42 (-22.0 / -10.5), every B seed is far below
+  A on normal colors. No test yet: the written tests run after the driving checks.
 - One job at a time: with the PC's other apps open, Windows had only 2.3-6 GB of memory available. Your 3 GB rule
   stopped my work three times: I stopped seed 242's training by hand at 23:15 (resumed exactly at 02:00), and the memory
   guard (`scripts/memory_guard.py`) stopped an evaluation at 05:07 and B42 at 07:06. All my jobs run at low CPU
