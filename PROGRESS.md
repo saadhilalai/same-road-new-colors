@@ -3,7 +3,7 @@
 Race-car AI that learns to drive from pixels only (Gymnasium CarRacing-v3, PPO),
 testing whether domain randomization (random colors in training) makes it robust to unseen colors.
 
-## Summary (updated 2026-10-20 03:50)
+## Summary (updated 2026-10-20 15:15)
 
 **Now (2026-10-19): retraining A and B with the new recipe "beta"** (PPO with a Beta policy and one pedal, from
 published evidence; director's OK). Code and checks are done (24/24 tests; exact resume after a hard kill).
@@ -14,7 +14,10 @@ gate decisions: `results/beta_plan/gates.md`.
   with the old A seed 42 (781.8), not better.
 - **Stage 2 done: B seed 42 can drive now.** 728.1 on validation, normal colors (the old B seed 42: -24.5). No
   switch to Slaoui's method. One seed only; seed 142 is the real test.
-- **Now:** stage 3 (A and B seed 142). The two-seed rule decides around 15:30 on 2026-10-20.
+- **Stage 3 done: the two-seed rule passed, so the new recipe is adopted.** Two-seed means on validation: A 792.8
+  (old 475.7), B 723.8 (old -12.2; better on 100 of 100 tracks, p = 3.9e-18). A seed 142 scored 806.7, the
+  project's first agent above 800. Most races still end at the time limit just before the lap is done.
+- **Now:** stage 4 (seeds 242, then the unseen-color tests). Expected end around 03:00-05:00 on 2026-10-21.
 - **Miss:** my gate script crashed after making that decision and stopped the plan for a few minutes. Fixed, tested,
   restarted; no training lost (see "Progress" in the plan section).
 
@@ -587,6 +590,24 @@ The 800 pass mark is not reached.
   not looked at until stage 4, as the rule says.
 - Training took 5.5 h (22:13 to 03:42).
 - Stage 3 started at 03:45 (A seed 142, then B seed 142). The two-seed rule decides around 15:30.
+
+**Stage 3 (2026-10-20 15:05): the two-seed rule PASSED, so the new recipe is adopted.** 100 validation tracks,
+normal colors, final copies (`results/beta_plan/gates.md`):
+
+| | Seed 42 | Seed 142 | Two-seed mean | Old recipe "entropy", same seeds | Rule |
+|---|---|---|---|---|---|
+| A | 778.9 | **806.7** (800 reached) | 792.8 | 475.7 | at least 425.7: passed |
+| B | 728.1 | 719.5 | 723.8 | -12.2 | at least 300: passed |
+
+- B against the old B, per track: +736.0 on average, better on 100 of 100 tracks. Paired Wilcoxon, two-sided:
+  p = 3.9e-18 (needs p < 0.05). Passed.
+- **A seed 142 is the first agent in this project above 800 on validation** (the old A seed 142 scored 169.6).
+  The other three new agents are under 800.
+- **The new agents still run out of time.** They cover 82-91% of the track on average, but 84-100% of races hit the
+  1,000-step limit before the lap ends. B seed 142 never finished a lap (0%), though it never left the map either.
+  Likely reason (untested): they still drive too slowly to finish in time. The speed check in stage 4 will show it.
+- Stage 4 started at 15:06: seeds 242, then the evaluations on the analysis tracks (normal and unseen colors), the
+  Step 3 color tests, and the speed checks. Expected end: around 03:00-05:00 on 2026-10-21.
 
 ## Research: what has reached ~900 on CarRacing (2026-10-19; nothing trained)
 The director chose option (a), to fix the training together with the slow driving and retrain once, and asked me to
