@@ -3,7 +3,7 @@
 Race-car AI that learns to drive from pixels only (Gymnasium CarRacing-v3, PPO),
 testing whether domain randomization (random colors in training) makes it robust to unseen colors.
 
-## Summary (updated 2026-10-19 22:12)
+## Summary (updated 2026-10-20 03:50)
 
 **Now (2026-10-19): retraining A and B with the new recipe "beta"** (PPO with a Beta policy and one pedal, from
 published evidence; director's OK). Code and checks are done (24/24 tests; exact resume after a hard kill).
@@ -11,7 +11,10 @@ The plan runs unattended: about 40 h, or about 52 h if B switches to Slaoui's me
 training. Details, rule and measured speed: "Plan: retraining with recipe beta". Progress: `logs/plan.log`,
 gate decisions: `results/beta_plan/gates.md`.
 - **Stage 1 done:** A seed 42 scored 778.9 on validation, which passes the rule (at least 500). That's about level
-  with the old A seed 42 (781.8), not better. **B seed 42 is training now.**
+  with the old A seed 42 (781.8), not better.
+- **Stage 2 done: B seed 42 can drive now.** 728.1 on validation, normal colors (the old B seed 42: -24.5). No
+  switch to Slaoui's method. One seed only; seed 142 is the real test.
+- **Now:** stage 3 (A and B seed 142). The two-seed rule decides around 15:30 on 2026-10-20.
 - **Miss:** my gate script crashed after making that decision and stopped the plan for a few minutes. Fixed, tested,
   restarted; no training lost (see "Progress" in the plan section).
 
@@ -575,6 +578,15 @@ and stopped. It also wrote the done-file, so that file wrongly said the plan had
 - `scripts/run_plan.sh` got `PLAN_FROM=2`, which resumes after stage 1 without retraining. It checks gate a42 again on
   the same scores, so `gates.md` shows a42 twice, with the same result. Dry-run tested. The rule is unchanged.
 - Restarted at 22:12 with `PLAN_FROM=2`. That removed the wrong done-file. Cost: a few minutes, no training lost.
+
+**Stage 2 (2026-10-20 03:45): B seed 42 can drive. No switch to Slaoui's method; B keeps plain random colors.**
+Mean 728.1 +/- 243.5 on the 100 validation tracks, normal colors (at least 100 needed). Full laps 7%, off the map 9%.
+The 800 pass mark is not reached.
+- For comparison (not part of the rule): the old B seed 42 scored -24.5 on the same tracks. The new A seed 42 scored 778.9.
+- One seed only. Seed 42 was also the old recipe's best seed for A, so seed 142 is the real test. Unseen colors are
+  not looked at until stage 4, as the rule says.
+- Training took 5.5 h (22:13 to 03:42).
+- Stage 3 started at 03:45 (A seed 142, then B seed 142). The two-seed rule decides around 15:30.
 
 ## Research: what has reached ~900 on CarRacing (2026-10-19; nothing trained)
 The director chose option (a), to fix the training together with the slow driving and retrain once, and asked me to
