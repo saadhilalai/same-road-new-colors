@@ -3,13 +3,17 @@
 Race-car AI that learns to drive from pixels only (Gymnasium CarRacing-v3, PPO),
 testing whether domain randomization (random colors in training) makes it robust to unseen colors.
 
-## Summary (updated 2026-10-19 16:40)
+## Summary (updated 2026-10-19 22:15)
 
 **Now (2026-10-19): retraining A and B with the new recipe "beta"** (PPO with a Beta policy and one pedal, from
 published evidence; director's OK). Code and checks are done (24/24 tests; exact resume after a hard kill).
 The plan runs unattended: about 40 h, or about 52 h if B switches to Slaoui's method. The rule was written before
 training. Details, rule and measured speed: "Plan: retraining with recipe beta". Progress: `logs/plan.log`,
 gate decisions: `results/beta_plan/gates.md`.
+- **Stage 1 done:** A seed 42 scored 778.9 on validation, which passes the rule (at least 500). That's about level
+  with the old A seed 42 (781.8), not better. **B seed 42 is training now.**
+- **Miss:** my gate script crashed after making that decision and stopped the plan for a few minutes. Fixed, tested,
+  restarted; no training lost (see "Progress" in the plan section).
 
 **Finished earlier:** Step 2 (Agent A, 2026-10-18 05:25) and **Step 3, the color test (2026-10-19 03:05)**, with the
 old recipe ("entropy"). Those results stay as the "before" comparison:
@@ -550,6 +554,27 @@ low priority, memory guard).
 - It writes the done-file when the plan ends: finished, stopped by the rule, or the queue gave up.
 - Change to the memory waits: a job's first start now needs 5.5 GB free and steady for 1 minute (was 10 minutes, which
   would add over 3 hours across more than 20 jobs). A restart after a memory stop still needs 10 minutes.
+
+### Progress
+
+**Stage 1 (2026-10-19 22:10): A seed 42 passed the rule.** Mean 778.9 +/- 177.3 on the 100 validation tracks
+(at least 500 needed). Full laps 8%, off the map 3%. The 800 pass mark is not reached.
+- For comparison (not part of the rule): the old A seed 42 (recipe "entropy") scored 781.8 on the same tracks, with
+  16% full laps. So A seed 42 is about level, not better. Most races still run out of time before the lap ends.
+  Likely reason (untested): it still drives slowly. The speed check in stage 4 will show it.
+- Training took 5.7 h (16:23 to 22:03), about 245 decisions/s.
+
+**Miss: my gate script crashed and stopped the plan (2026-10-19 22:10).** The decision itself was made and saved to
+`results/beta_plan/gates.md` (PASSED). Then the script crashed while saving the same decision to `gates.jsonl`
+(a numpy true/false that Python's JSON writer refuses). The plan runner treated the crash as an error, as it should,
+and stopped. It also wrote the done-file, so that file wrongly said the plan had ended.
+- Why my tests missed it: the dry runs replaced the gate script with stand-ins, so the real script never ran to the end.
+- Fix: `scripts/plan_gate.py` now saves a plain true/false. I ran all three gates for real (a42, b42, two seeds) on
+  real score files, with old runs standing in for the runs not trained yet, once passing and once failing.
+  All saved correctly.
+- `scripts/run_plan.sh` got `PLAN_FROM=2`, which resumes after stage 1 without retraining. It checks gate a42 again on
+  the same scores, so `gates.md` shows a42 twice, with the same result. Dry-run tested. The rule is unchanged.
+- Restarted at 22:15 with `PLAN_FROM=2`. That removed the wrong done-file. Cost: a few minutes, no training lost.
 
 ## Research: what has reached ~900 on CarRacing (2026-10-19; nothing trained)
 The director chose option (a), to fix the training together with the slow driving and retrain once, and asked me to

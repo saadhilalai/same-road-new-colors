@@ -98,7 +98,7 @@ def main():
         f.write(f"\n## {args.gate} (B recipe: {args.recipe_b}), {datetime.now():%Y-%m-%d %H:%M}\n\n")
         f.write("".join(f"- {line}\n" for line in lines))
     with open(OUT / "gates.jsonl", "a") as f:
-        f.write(json.dumps({"gate": args.gate, "recipe_b": args.recipe_b, "passed": ok,
+        f.write(json.dumps({"gate": args.gate, "recipe_b": args.recipe_b, "passed": bool(ok),   # (numpy bool otherwise)
                             "time": datetime.now().isoformat(timespec="seconds"), "lines": lines}) + "\n")
     print("\n".join(lines), flush=True)
     sys.exit(PASSED if ok else FAILED)

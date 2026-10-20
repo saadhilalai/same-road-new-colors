@@ -14,11 +14,14 @@
 # Ends by writing one line (when + why) to the done-file, once nothing of mine is running and memory is freed.
 # Log: logs/plan.log. Gate decisions: results/beta_plan/gates.md. Results are committed after each stage.
 # PLAN_DRY_RUN=<dir> (tests only): jobs and gates are replaced by stand-ins from <dir>, nothing is committed.
+# PLAN_FROM=2: resume after stage 1 (its jobs are skipped, their results are already in results/; gate a42
+# is checked again on them). Used once, after the gate script crashed on 2026-10-19 (PROGRESS.md).
 cd "$(dirname "$0")/.." || exit 1
 DRY=${PLAN_DRY_RUN:-}
 FLAG=${DRY:+$DRY/flag}; FLAG=${FLAG:-logs/training_done.flag}
 LOG=${DRY:+$DRY/plan.log}; LOG=${LOG:-logs/plan.log}
 A=beta
+FROM=${PLAN_FROM:-1}
 mkdir -p logs
 p() { echo "[$(date '+%F %T')] $*" >> "$LOG"; }
 
@@ -63,12 +66,17 @@ gate() {
 train() { echo "scripts.train --agent $1 --seed $2 --recipe $3"; }
 val() { echo "scripts.evaluate_agent --agent $1 --seeds $2 --recipe $3 --tracks validation --colors normal"; }
 
+[ "$FROM" = 1 ] || [ "$FROM" = 2 ] || { echo "PLAN_FROM must be 1 or 2"; exit 1; }
 rm -f "$FLAG"
 p "PLAN START (pid $$)"
 
 # Stage 1
-queue "$(train A 42 $A)" "$(val A 42 $A)" "$(val B '42 142' entropy)"
-commit_results "Plan stage 1: A seed 42 trained with recipe beta, validation scores"
+if [ "$FROM" = 1 ]; then
+  queue "$(train A 42 $A)" "$(val A 42 $A)" "$(val B '42 142' entropy)"
+  commit_results "Plan stage 1: A seed 42 trained with recipe beta, validation scores"
+else
+  p "RESUMED from stage $FROM: stage 1's jobs are done, their results are in results/"
+fi
 gate a42 || finish "stopped by the rule: A seed 42 scored under 500 on validation, so the recipe or my code doesn't work here (results/beta_plan/gates.md)"
 
 # Stage 2
