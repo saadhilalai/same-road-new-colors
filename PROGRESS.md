@@ -3,7 +3,7 @@
 Race-car AI that learns to drive from pixels only (Gymnasium CarRacing-v3, PPO),
 testing whether domain randomization (random colors in training) makes it robust to unseen colors.
 
-## Summary (updated 2026-10-19 22:15)
+## Summary (updated 2026-10-19 22:12)
 
 **Now (2026-10-19): retraining A and B with the new recipe "beta"** (PPO with a Beta policy and one pedal, from
 published evidence; director's OK). Code and checks are done (24/24 tests; exact resume after a hard kill).
@@ -574,7 +574,7 @@ and stopped. It also wrote the done-file, so that file wrongly said the plan had
   All saved correctly.
 - `scripts/run_plan.sh` got `PLAN_FROM=2`, which resumes after stage 1 without retraining. It checks gate a42 again on
   the same scores, so `gates.md` shows a42 twice, with the same result. Dry-run tested. The rule is unchanged.
-- Restarted at 22:15 with `PLAN_FROM=2`. That removed the wrong done-file. Cost: a few minutes, no training lost.
+- Restarted at 22:12 with `PLAN_FROM=2`. That removed the wrong done-file. Cost: a few minutes, no training lost.
 
 ## Research: what has reached ~900 on CarRacing (2026-10-19; nothing trained)
 The director chose option (a), to fix the training together with the slow driving and retrain once, and asked me to
