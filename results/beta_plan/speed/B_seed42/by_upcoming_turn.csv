@@ -1,0 +1,5 @@
+turn,share_of_time,mean_speed,p90_speed,mean_gas,pct_full_gas,pct_braking,pct_all_wheels_off_road
+straight (<15 deg),53.54,50.43,74.5,0.28,0.69,8.25,15.37
+gentle (15-45),18.22,56.25,78.24,0.26,1.41,9.17,13.12
+medium (45-90),20.31,55.39,78.47,0.24,0.58,7.35,11.96
+sharp (>90),7.92,59.28,80.08,0.18,0.65,10.52,14.91

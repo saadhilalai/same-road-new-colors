@@ -1,0 +1,13 @@
+{
+  "races": 100,
+  "replays_matching": "100/100",
+  "mean_needed_speed": 51.7,
+  "mean_achieved_speed": 63.5,
+  "races_fast_enough_on_average": 83,
+  "races_out_of_time": 90,
+  "races_out_of_time_with_90pct_covered": 71,
+  "overall_mean_gas": 0.3,
+  "overall_pct_full_gas": 1.02,
+  "highest_gas_used": 0.992,
+  "top_speed_seen": 100.0
+}
