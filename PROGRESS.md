@@ -3,7 +3,7 @@
 Race-car AI that learns to drive from pixels only (Gymnasium CarRacing-v3, PPO),
 testing whether domain randomization (random colors in training) makes it robust to unseen colors.
 
-## Summary (updated 2026-10-22 00:55)
+## Summary (updated 2026-10-22 01:30)
 
 **Now (2026-10-19): retraining A and B with the new recipe "beta"** (PPO with a Beta policy and one pedal, from
 published evidence; director's OK). Code and checks are done (24/24 tests; exact resume after a hard kill).
@@ -33,6 +33,9 @@ gate decisions: `results/beta_plan/gates.md`.
   better on 93 of 100 tracks, Holm p = 1.7e-16; every B seed beats every A seed). Normal colors: A 807.1, B 739.3,
   so B pays a price of 67.8 points (significant). **The project question is answered: yes, for these agents, training
   on random colors made the driver far more robust to colors it had never seen, at a small cost on normal colors.**
+- **Step 7 done:** charts, 9 test-race videos (all replay-checked), README GIFs. **Step 8:** README, INTERVIEW.md,
+  cleaned models, the website and its data are done; the privacy check and publishing come last (publishing needs the
+  director's GitHub and Hugging Face logins).
 - **Miss:** my gate script crashed after making that decision and stopped the plan for a few minutes. Fixed, tested,
   restarted; no training lost (see "Progress" in the plan section).
 
@@ -573,6 +576,41 @@ wrong images, and it is not part of the A-vs-B judgment.
   together (up to 0.0002) and differs from full precision by up to 0.005. **The limit is now 0.01**, still 40 times
   below a wrong image's typical 0.4. The recorded races are the ground truth (replays use the recorded actions), so
   no result changes.
+
+## Step 8: package and publish (2026-10-22)
+- **README.md** (results first, how it was built, the setup in plain words, every step, bugs, limits, videos, how to
+  run, layout, credits) and **INTERVIEW.md** (ten questions, answered plainly), in the style of the other projects.
+  Every number in them was checked against the result files; the first draft had four wrong numbers (practice total,
+  number of earlier evaluation races, the length of A's best lap, code size), all fixed before committing.
+- **Models:** `models/` holds cleaned copies of the six final agents and the untrained network. The originals carried
+  this PC's folder paths (Stable-Baselines3 saves the log folder, and the learning-rate schedule as code); the copies
+  replace those with plain values and are checked to have the same weights and make the same decisions.
+  `scripts/restore_models.py` puts them and the recorded test actions back in place.
+- **Website** (`web/`): the other projects' look, every number read from the result files, and a top-down replay of
+  all 1,200 test races (every replay checked against its record). Tried in a headless browser at desktop and phone
+  sizes (no errors, no sideways scrolling). Packed as a Hugging Face Space by `scripts/make_space.py`.
+- **Resume bullets** (real numbers, no hype):
+  1. Trained pixel-only race-car agents in PyTorch and Stable-Baselines3 (PPO with a Beta policy) and showed that color
+     domain randomization lifts the score in unseen color schemes from 92 to 581 across 100 hidden test tracks
+     (paired Wilcoxon test, Holm p < 0.001), at a 68-point cost on normal colors.
+  2. Built a reproducible evaluation pipeline: separate validation, analysis and test tracks, judging rules and a
+     one-shot test plan committed to git before each experiment, bit-for-bit training resume, and replay checks of
+     all 1,200 recorded test races.
+  3. Measured what the agents look at with blur-test and gradient saliency per image region (105,643 frames), finding
+     both rely heavily on the dashboard gauges (41-53% of the saliency on 12.5% of the image), and built a live site
+     that replays every test race.
+
+## Step 7: charts and videos (2026-10-22 00:53-01:16)
+- **Charts** (`results/charts/`): learning curves A vs B; the main result (normal vs unseen colors, each seed shown);
+  the cost of robustness (normal colors, per-track differences). Colorblind-safe blue/orange, one color per agent.
+- **Videos** (`results/final_test/videos/`, the game's full 1000x800 picture per view, 50 frames per second): the
+  untrained car, A on normal colors, A vs B on unseen colors side by side, the split screen (human view | the AI's
+  64x64 input | heat map), and 5 B-roll clips. Chosen by the rules in the test plan; each replays a recorded test race
+  and matched its recorded score (`manifest.json`). README GIFs in `docs/media/`.
+- The A-vs-B clip's track (the median gap) is 10027: purple road, blue grass. A leaves the map after 9.5 s (138.9);
+  B drives to the time limit (745.1).
+- **The untrained car doesn't spin out** (the director's expectation): with random actions it mostly jitters and creeps,
+  because random gas and brake cancel out (score -48.7 on track 10000). The video shows that as it is.
 
 ## Step 6: the final test (run once, 2026-10-22 00:22-00:51)
 Run exactly as written in `results/final_test/TEST_PLAN.md` (committed before the test tracks were used for
