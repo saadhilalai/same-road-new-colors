@@ -944,7 +944,7 @@ publish (README, INTERVIEW.md, privacy check of all files and history, public Gi
 - 2026-10-21 23:50: **the website follows the other projects' look** (dark scenes, Geist type, the S4D mark, Nerd mode,
   a race replay of every test track), reusing their brand files and fonts. Every number on it is read from the result
   files, so nothing is typed in by hand.
-- 2026-10-22 00:22: **the final test runs now** (plan committed in a232043, before any test-track use).
+- 2026-10-22 00:22: **the final test runs now** (plan committed in 94c6d6a, before any test-track use; this was a232043 before the history clean-up).
 - 2026-10-22 01:25: **correction:** I first wrote the main test's Holm p-value as 1.8e-16 (here and in the Step 6
   commit message). It is 1.745e-16, so 1.7e-16 when rounded. Fixed everywhere, including that commit message.
 
