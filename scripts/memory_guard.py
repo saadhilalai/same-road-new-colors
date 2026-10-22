@@ -21,6 +21,7 @@ import config
 
 LOG = config.PROJECT_ROOT / "logs" / "memory_guard.log"
 JOB_PATTERNS = ("scripts.diagnose", "scripts.evaluate_agent", "scripts.inspect_driving", "scripts.compare",
+                "scripts.attention", "scripts.make_", "scripts.final_test",
                 "scripts.train")  # stop order: analysis jobs first, trainings last
 
 

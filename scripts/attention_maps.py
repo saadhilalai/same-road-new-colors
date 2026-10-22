@@ -18,13 +18,13 @@ from concurrent.futures import ProcessPoolExecutor
 
 import numpy as np
 import pandas as pd
-import torch as th
-from stable_baselines3 import PPO
 
 import config
-from racecar.attention import blur_maps, gradient_maps, patch_masks, region_shares
 from racecar.attention_frames import REGIONS, replay_for_attention
 from racecar.envs import one_pedal_to_game
+
+# PyTorch and the AI are imported inside the functions that need them: the replay workers re-import this file,
+# and without PyTorch each of them needs about 400 MB less memory.
 
 OUT = config.RESULTS_DIR / "attention"
 EXAMPLES = config.RUNS_DIR / "attention_examples"
@@ -34,6 +34,7 @@ EXAMPLE_TRACKS = 5           # keep the maps of the first 5 tracks for figures
 
 
 def load_model(agent, seed, recipe, checkpoint="final"):
+    from stable_baselines3 import PPO
     model = PPO.load(config.RUNS_DIR / config.run_name(agent, seed, recipe) / "checkpoints" / f"model_{checkpoint}.zip",
                      device=config.DEVICE)
     model.policy.set_training_mode(False)
@@ -41,6 +42,7 @@ def load_model(agent, seed, recipe, checkpoint="final"):
 
 
 def maps_for(policy, stacks, masks):
+    from racecar.attention import blur_maps, gradient_maps
     return {"blur": blur_maps(policy, stacks, masks), "gradient": gradient_maps(policy, stacks, config.DEVICE)}
 
 
@@ -55,6 +57,7 @@ def rank_correlation(a, b):
 
 def race_row(maps, fractions):
     """Shares, areas and focus (share / area) per method and region, averaged over the race's moments."""
+    from racecar.attention import region_shares
     area = fractions.astype(np.float32).mean(axis=(2, 3)).mean(axis=0)
     row = {f"area_{r}": float(a) for r, a in zip(REGIONS, area)}
     for method, m in maps.items():
@@ -119,6 +122,8 @@ def main():
     p.add_argument("--workers", type=int, default=8)
     args = p.parse_args()
 
+    import torch as th
+    from racecar.attention import patch_masks
     th.backends.cudnn.deterministic, th.backends.cudnn.benchmark = True, False
     th.set_num_threads(config.TORCH_CPU_THREADS)
     OUT.mkdir(parents=True, exist_ok=True)

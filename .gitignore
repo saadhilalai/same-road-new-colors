@@ -16,3 +16,6 @@ Thumbs.db
 
 # Driving-check videos (regenerable from recorded actions; final videos are chosen in Step 7)
 results/driving/*/videos/
+
+# Heat-map and final videos (large; regenerable from recorded actions; published with the website)
+results/attention/videos/
