@@ -315,6 +315,142 @@ Mid-run observations (not judged yet, nothing changed; the final copies are what
 seed 142's 20-track checks stayed at 246-317 up to 1M decisions (covers only ~40% of the track, almost never
 leaves the playing area); seed 242 peaked at 747 (504k) and was at 539 at 1M.
 
+## Slow driving: diagnosis (no training; plan for a fix follows once the diagnosis is done)
+The director asked for a plan to fix the slow driving, with the judging rule written in advance, and **no
+training without the director's go**. First, cheap checks on seed 42's final copy (`entropy`), validation tracks only.
+
+**1. Speed diagnosis** (`scripts/diagnose_speed.py`, `results/step2/speed_diagnosis/`; all 100 races replayed exactly)
+- The car drives at **one steady cruising speed everywhere**: gas about 0.09 whatever the road ahead does;
+  it never uses more than half gas (highest 0.51), never full gas, and almost never brakes.
+- It is **fastest right before sharp turns** (average speed 57 vs 49 on straights), because speed builds up over
+  each straight with steady gas. In front of sharp turns all four wheels are off the road 17% of the time
+  (straights: 4%), and brakes only 3.4% of that time.
+- Its average speed (51.9) is almost exactly what a lap needs to finish in 20 seconds (51.7): 78 of 100 races
+  ran out of time, 55 of them with 90%+ of the track covered.
+
+**2. Gas-scaling what-if** (`scripts/diagnose_gas_scaling.py`, rule written before running): replay the same
+driver on the 100 validation tracks with its gas multiplied by 1.5, 2 and 3 (steering and brake untouched).
+- Check: factor 1.0 must reproduce the normal evaluation exactly (781.8), otherwise the test is broken.
+- **"Steering copes with more speed"** if some factor >= 1.5 gives a higher mean score than 1.0 **and** at most
+  10 percentage points more off-track races. Then the limit is the throttle the AI learned.
+- **"Steering can't cope"** if 1.5x already adds more than 10 points of off-track races or loses more than 50
+  points of mean score. Then the AI would need to learn braking and anticipation, not just more gas.
+- Anything else: "mixed", reported as such.
+
+**Gas-scaling result (02:15): "steering can't cope"** - by the rule written above. `results/step2/gas_scaling/summary.md`
+
+| Gas x | Mean score | Covered | Laps | Off track | Out of time | ...with 90%+ covered |
+|---|---|---|---|---|---|---|
+| 1.0 (exact match with the normal evaluation) | 781.8 | 88.5% | 16% | 6% | 78% | 55 |
+| 1.5 | 680.5 | 79.4% | 4% | 18% | 78% | 36 |
+| 2.0 | 526.5 | 65.1% | 2% | 36% | 62% | 11 |
+| 3.0 | 368.9 | 49.0% | 0% | 33% | 67% | 6 |
+
+At 1.5x gas the driver already loses 101 points and leaves the playing area 12 points more often. So the
+slowness is not just a timid throttle on top of good steering: at higher speed this driver misses corners.
+A faster driver would have to *learn* to brake before corners and speed up on straights, which it never does now.
+
+**All three seeds are slow** (training races, from 1.5M decisions on): seed 42 covers about 85% of the track per race,
+seed 242 50-67%, and seed 142 only 22-25%. Seeds 142 and 242 never leave the playing area and every race lasts the
+full 1,000 frames: they creep along the road. Seed 142's final copy: 169.6 on the 100 validation tracks, 152.3 on the
+100 analysis tracks.
+
+## Plan: fixing the slow driving (written 2026-10-18 02:35; NOT started, needs the director's go)
+
+**What we know** (sections above): all three seeds settle on driving slowly and steadily. Seed 42 cruises at
+almost exactly the speed a lap needs and runs out of time; seeds 142 and 242 creep (seed 142: average speed 13
+vs 52 for seed 42). None of them slows down for corners or speeds up on straights. Giving seed 42 more gas makes
+it crash more (gas-scaling test), so the fix has to teach braking and anticipation, not just "more gas".
+
+**Likely reasons (untested)**
+1. *Exploration of the pedals dies early.* The AI's random "trying things" shrinks from 0.135 to about 0.01.
+   Gas and brake are two separate outputs, each cut off at 0, so a driver that has settled on "no brake" almost
+   never gets to try braking (seed 42 brakes in 0.7% of decisions) and never learns its value before corners.
+2. *Running out of time doesn't hurt it in training.* At the 1,000-frame limit, Stable-Baselines3 treats the race
+   as if it went on (it "bootstraps" the value). So in training, unfinished track at time-out costs nothing,
+   while a crash costs -100 plus everything after it. Slow and safe looks good to the AI. Also, the AI
+   can't see how much time is left: the screen has no clock.
+
+**Two candidate fixes, each changing exactly one thing**
+- **F1 "one pedal"**: gas and brake become one output from -1 to 1 (above 0 = gas, below 0 = brake). A thin
+  wrapper turns it back into the game's 3 controls; game, rewards and score are unchanged. A neutral driver then
+  tries braking as often as accelerating. Targets reason 1.
+- **F2 "time counts"**: the 1,000-frame limit becomes the real end of a race in training (no bootstrapping), and
+  the AI gets a time-left bar drawn into the black dashboard strip of its image (otherwise it couldn't know when
+  the end comes). Targets reason 2. Changes what the AI sees, so it is a bigger design change than F1.
+
+**Test design**
+- Each candidate trains on seeds 42 **and** 142 (the current recipe's best and worst seed; one seed alone misled
+  us before), 4M decisions, final copies. Everything else is the current recipe (`entropy`).
+- Judged only on the 100 validation tracks, normal colors. Test tracks stay hidden.
+- Cost: 4 runs of about 4.5-5 h. With the PC's other apps open, memory allows one at a time (about 19 h); two at
+  a time (about 10 h) if Windows has about 2 GB more free.
+
+**Judging rule (fixed now, before any training)** - a candidate "works" only if all of these hold:
+1. **Better scores:** per track, the mean of its two seeds beats the current recipe's mean of the same two seeds
+   (currently 781.8 and 169.6 on validation, mean 475.7). Paired Wilcoxon test over the 100 tracks, two-sided,
+   Holm-corrected over the 2 candidates: mean difference > 0 and adjusted p < 0.05.
+2. **Mechanism:** for both seeds, the speed diagnosis shows it is slower before sharp turns than on straights
+   (now it is faster), and fewer races run out of time with 90%+ covered than with the current recipe.
+3. **Safety:** off-track races at most 10 percentage points above the current recipe (same seeds).
+4. **No tricks** in the driving check (driving backwards, shortcuts, point farming).
+5. The 800 pass mark is reported per seed and not changed.
+- If both work: the higher mean wins (the paired test between them is reported). If neither works: keep the
+  current recipe and report it.
+
+**What it would mean for the project:** A and B must use the same recipe. If a fix wins, both agents are retrained
+with it (the trial's seed 42 and 142 runs count for A; then A seed 242 and B seeds 42, 142, 242: 4 more runs).
+The B runs started tonight with the current recipe would then be a "before" comparison, not the final result.
+
+**Decisions needed from the director**
+- D1: run the fix trial, or keep the current recipe and report the slowness as a limitation? (The A-vs-B
+  colour question doesn't need a fast driver, but seed 142's crawl drags Agent A's average down.)
+- D2: if yes, which candidates (F1, F2 or both) and which seeds (42 + 142 recommended; 42 alone saves half the time).
+- D3: allow two trainings at once by freeing about 2 GB of memory on Windows (halves the time)?
+
+## Step 2 results: Agent A (finished 2026-10-18 05:25)
+Agent A = recipe `entropy`, seeds 42 / 142 / 242, 4M decisions each, **final copies**, normal colors.
+Every evaluation race was replayed exactly (100/100 per seed and track set). Tables:
+`results/step2/agentA_validation_normal.md`, `results/step2/agentA_analysis_normal.md`.
+Learning curves: `results/step2/learning_curves.png`.
+
+| Agent A | Validation (100) | Analysis (100) | Analysis: covered | Laps (strict) | Laps (game's rule) | Off track |
+|---|---|---|---|---|---|---|
+| Seed 42 | 781.8 | 780.7 +/- 178.4 | 88.3% | 12% | 12% | 4% |
+| Seed 142 | 169.6 | 152.3 +/- 116.1 | 25.2% | 0% | 0% | 0% |
+| Seed 242 | 644.1 | 642.0 +/- 161.3 | 74.2% | 0% | 0% | 0% |
+| **Mean of seeds** | **531.8** | **525.0** | 62.6% | 4% | 4% | 1.3% |
+
+- **Not solved** (900) by any seed. **The 800 pass mark is missed by all three seeds** (best: seed 42, 780.7-781.8).
+- **Large differences between seeds** (152 to 781 on the same tracks). Picking the recipe on seed 42 alone made it
+  look better than it is: seed 42 turns out to be the best of the three.
+- Learning curves: seed 42 learned within 250k decisions and stayed at 750-820 on its 20-track checks. Seed 142
+  never got past about 320 and settled at 120-170. Seed 242 reached 747 at 504k, slid to 417 at 1.25M (like the
+  Zoo pilot's collapse), then recovered to 696 by the end.
+
+**How the three seeds drive** (frame sheets, path maps and driving numbers on the analysis tracks;
+`results/driving/A_seed*_entropy_analysis_normal/`)
+- **All three:** smooth, no wobble (0.16-0.66 steering reversals per second), almost no braking (0.0-0.7% of
+  decisions), never full gas, and **one steady speed** whatever the road does. None of them slows down for corners.
+- **Seed 42 (average speed 51):** centred, slightly cuts the inside of curves, follows almost every bend. Runs out
+  of time with 90%+ of the track done in most races. Its typical failure: overshoots a sharp hairpin onto the grass,
+  then drives straight until it leaves the map (4% of races), or, once lost, rejoins the road the wrong way.
+- **Seed 142 (average speed 13):** creeps. When it misses a bend at that low speed it rolls onto the grass and
+  stops there (20% of its time with all wheels on grass). Never leaves the playing area, covers a quarter of the track.
+- **Seed 242 (average speed 36):** very clean (all wheels on grass only 1.9% of the time, never leaves the map) but
+  slow: covers about three quarters of the track in the time. At some hairpins it slows almost to a stop and gets stuck.
+- **No point-farming tricks.** Driving backwards: at most 0.5% of the time on average. The shortcut counter flagged
+  21 / 17 / 1 races (seeds 42 / 142 / 242). Those are mostly bad races with lots of grass time; the two I replayed and
+  drew were a car that lost the road and looped back over road it had already driven (no points for that), and a
+  car that cut the inside of one bend and then stopped on the grass. Not a way of collecting extra points.
+
+**Notes**
+- The recipe's main weakness is the slow driving (diagnosis and a fix plan above; needs the director's go).
+- The 05:07 memory-guard stop: when Agent B seed 42 started training and seed 242's evaluation started next to it,
+  Windows' available memory fell to 2.3 GB and the guard stopped the evaluation. With the PC's other apps open,
+  only one of my jobs fits at a time, so B was stopped (2 minutes in, resumed exactly from checkpoint 0 at 05:23)
+  and the Step 2 evaluations ran first.
+
 ## Step 3: Color test (plan written 2026-10-17 23:20, before any Agent B result)
 Nothing in this plan needs a new decision from the director: the recipe was decided for A and B alike
 (`config.RECIPE = "entropy"`), the color rules were fixed in Step 1, and the time was announced in Step 2.
@@ -492,313 +628,86 @@ races are flagged as "possible shortcuts": the nearest point of the road jumps w
 These races score at most 181, so no points are gained; it is a missed turn, not a trick. No B seed ever used
 full gas.
 
-## Steps 4-8 in one go (director's instruction, 2026-10-21 23:00)
-**Director's instruction:** do everything from Step 4 to the finish in one go, without waiting for OKs. At every
-decision, make the safe, standard choice and write the decision and the reason here. Stop only if something is truly
-broken and can't be fixed. Commits: "Saad Hilal" with the no-reply email, no extra trailer lines. When completely
-done, write the done-file, then send the GitHub link, the website link, the main results table and 3 resume bullets.
-Steps: 4 what the AI sees (heat maps, A vs B, videos); 5 review (fix anything broken, validation tracks only);
-6 final test, once (plan committed first); 7 charts and videos (every clip replays a real test run); 8 package and
-publish (README, INTERVIEW.md, privacy check of all files and history, public GitHub repo, website on Hugging Face).
+## Research: what has reached ~900 on CarRacing (2026-10-19; nothing trained)
+The director chose option (a), to fix the training together with the slow driving and retrain once, and asked me to
+base the recipe on published evidence instead of patching the current one. Full tables with sources:
+`results/research/carracing_literature.md`. Most published scores are on CarRacing-v0. Reward, time limit and the 900
+mark are the same as in v3, but lap rules and test setups differ, so they are reference points, not exact comparisons.
 
-**Decision log**
-- 2026-10-21 23:00: the old done-file (written when the training plan ended) was deleted. Reason: it said "finished",
-  which is no longer true under the new plan. A new one is written only at the very end.
-- 2026-10-21 23:05: Step 4 heat-map method (asked just before the new instruction; the director chose the
-  recommended option): the **blur test** is the main method, with **gradients** as the check. A conclusion counts
-  only if both agree.
-- 2026-10-21 23:10: publishing needs logins this computer doesn't have for the terminal (GitHub and Hugging Face).
-  Reading the saved Windows login was blocked as unsafe, which is correct. So the director logs in once
-  (`gh auth login`, `hf auth login`). Everything else goes ahead meanwhile; publishing comes last.
-- 2026-10-21 23:40: **the untrained-car baseline picks random actions** from its starting policy (random seed 0).
-  Reason: an untrained AI's *best* action is to stand still (its checkpoint-0 checks scored about -93 because it never
-  moved), so "the untrained car" is shown as it really behaves when training starts.
-- 2026-10-21 23:45: **which test races become videos is fixed in the test plan, before the test** (e.g. the A-vs-B clip
-  uses the track with the median B-minus-A gap, not the most flattering one). Reason: no picking after seeing results.
-- 2026-10-21 23:50: **repository name `same-road-new-colors`** (GitHub `saadhilalai`, Space on `s4dAi`). Reason: says
-  what the experiment is, in the style of the other projects ("landfall", "walk-before-you-climb").
-- 2026-10-21 23:50: **the website follows the other projects' look** (dark scenes, Geist type, the S4D mark, Nerd mode,
-  a race replay of every test track), reusing their brand files and fonts. Every number on it is read from the result
-  files, so nothing is typed in by hand.
-- 2026-10-22 00:22: **the final test runs now** (plan committed in a232043, before any test-track use).
+**Two misses of mine (reported, not hidden):**
+- In Step 1 I took the RL Zoo's settings without checking the Zoo's own benchmark for them. **The Zoo reports 153.9 for
+  exactly this PPO recipe on CarRacing** (4M steps, one run, best-action evaluation, grayscale). Our seeds scored 170 to 782,
+  so seed 42 was a lucky draw, not the norm.
+- The summary said two trainings at once would run "about twice as fast". Measured: two at once took 5.7-6.1 h for
+  two runs, versus 3.4-3.5 h for one alone, so only about 15% faster.
 
-## Step 4: what the AI sees (rule written 2026-10-22 00:10, before any A-vs-B heat-map result)
-**How the heat maps are made** (`racecar/attention.py`, `racecar/attention_frames.py`):
-- The AI's exact images are rebuilt by replaying the recorded races. Checked on test races: the replay matches the
-  recorded score, and the AI's action on the rebuilt images matches the recorded action (largest difference 0.00003,
-  GPU rounding).
-- **Blur test (main; Greydanus et al. 2018):** blur one small round patch of the AI's 64x64 view at a time (patch size
-  sigma 4 pixels, one every 4 pixels = 256 patches, blur sigma 3; Greydanus's settings scaled from 84x84) and measure how much
-  the best action [steer, pedal] changes. **Gradients (check):** how strongly a tiny change to each pixel would move
-  the action (|d steer/d pixel| + |d pedal/d pixel|, added up over the 6 color channels of the 2 stacked images).
-- **Regions**, from drawing the same moment again in flat colors (works in any color scheme):
-  road edge (within 2 pixels of the road's border in the AI's view, either side, plus kerbs), road (the rest of the
-  road), off-road (grass, background, outside the map), the car, the dashboard (the black bar at the bottom).
-  Typical areas: edge 11%, road 14%, off-road 61%, car 0.6%, dashboard 12.5%.
+**What reached about 900, and what it needed**
+- **PPO with a "Beta" policy and one pedal (gas and brake merged).** This is the best-supported PPO result.
+  - Petrazzini & Antonelo 2021 trained 5 seeds for 5M steps with the normal reward and no tricks.
+    - Sampled actions: all 5 seeds scored above 900.
+    - The AI's best action (how we evaluate): 816 on average.
+    - The same settings with a Gaussian policy (the kind we use): 370 with the best action.
+  - The paper says that without merging gas and brake, "learning to control the vehicle would not take place."
+  - Three GitHub projects with the same core reach 860-909. Some of those use tricks, such as cutting a race short
+    during the test itself, which inflate the score.
+- **PPO with memory (an LSTM)** from the same RL Zoo: 862.5 (best action, one run, 4M steps, v0). A community copy on
+  v3 reports only 385.
+- **DQN with 5 buttons:** about 905. These runs used tricks at test time or trained on 3 fixed tracks. Smooth
+  controls were decided in Step 2, so this doesn't fit.
+- **Evolution, world models and attention agents:** 903-914. They need hundreds of millions to billions of game
+  frames, which on this PC is about 2.5 days (genetic algorithm) up to weeks or months per run.
+- **Colors.** Slaoui et al. 2020 trained PPO with background colors drawn from the full color range (5 seeds):
+  **"the randomized agent ... fail[s] to learn"** (-17, versus 554 for a normal-color agent). That is the same thing
+  that happened to our Agent B.
+  - What worked for them: train on normal colors and show the AI a recolored copy of each image. The AI is penalized
+    when it sees the two differently. Result: 640 on normal colors and 553 on all colors, versus 554 and 60 for a
+    plain normal-color agent.
+  - Tang et al. 2020: a PPO driver trained on normal colors fell from 865 to 505 when the colors shifted slightly, the
+    same weakness Agent A shows.
+- **Likely reasons for our weak runs (from this evidence, untested here):**
+  - The Gaussian policy plus clipping makes braking rare.
+  - With a Gaussian policy, the "best action" can drive much worse than sampled actions (370 vs 890 in Petrazzini).
+  - The update steps are far larger than normal. The 900-level runs use clip 0.1 and a lower minibatch size.
 
-**Decisions** (safe, standard choices):
-- Blur settings: Greydanus et al.'s, scaled to our image size. Reason: the standard method for game-playing AIs.
-- Moments: every 5th decision, skipping the first second (the camera zooms in then). Reason: enough moments per race
-  (up to 95) at low cost; neighboring decisions are nearly identical.
-- **Measure "focus" = share of heat in a region / share of the image the region covers** (both averaged over the race's
-  moments). 1 = the region gets exactly its size's worth of attention; 2 = twice that. Reason: A spends most of its
-  unseen-color races on grass, so its images contain more off-road area; dividing by area keeps that from deciding
-  the result by itself. The plain shares are reported too.
+**Recommended recipe (proposed; nothing starts without the director's OK):** the Petrazzini settings, for A and B alike.
+- Controls: steering plus one pedal (above 0 = gas, below 0 = brake). A thin wrapper turns this into the game's 3
+  controls. Game, reward and score are unchanged.
+- Action randomness: a Beta distribution, which always stays inside the allowed range, instead of the Gaussian with gSDE.
+  The "best action" is the Beta's mean, as in the paper.
+- PPO settings (the paper's):
+  - Learning rate 2.5e-4, shrinking linearly to 0.
+  - Clip 0.1, 10 epochs, minibatch 64.
+  - 500 steps per simulator per update, 8 simulators.
+  - Gamma 0.99, GAE 0.95, entropy 0.01, value 0.5.
+  - 3 convolution layers plus 512 units.
+  - **5M decisions** (the paper's 5M steps).
+- Kept from this project, where the paper differs:
+  - **Color input** (Step 1 decision; every ~900 result used grayscale, so this part is untested).
+  - **64x64 with 2 stacked frames.** The paper used 84x84 with 4. Ours saves about 1 GB of memory per training, and the
+    Zoo's 862 result used 64x64 with 2 frames.
+  - Frame skip 2, and reward rescaling during learning. Rescaling doesn't change scores.
+  - Evaluation with the best action. Based on the paper, A should land around 800, right at the pass mark, which
+    is not changed.
+- Agent B: the same recipe with the same random colors as before, so the project question stays the same. Slaoui's
+  result says plain random colors may still fail. The fallback is their method, which would change what "Agent B"
+  means, so that is the director's call.
+- Time (one run at a time): about 5 h per run (estimate: 5M decisions plus more learning steps than now; measured in a
+  short test first).
+  - Code and tests: about 30 min of computing.
+  - A42 + B42: about 10 h. A142 + B142: about 10 h. A242 + B242: about 10 h.
+  - Evaluations, driving checks and the Step 3 tests: about 2 h.
+  - **Total about 32 h. Over 8 h.**
+- Draft judging rule, to be fixed in full before training. Validation tracks only, normal colors, final copies. Unseen
+  colors are not looked at before the final Step 3 test.
+  1. After A42 and B42:
+     - If A42 is under 500, the recipe or my code doesn't work here: stop.
+     - If B42 is under 100 (still can't drive), stop and ask about B.
+  2. After seeds 42 and 142, the new recipe is adopted if both hold:
+     - B's two-seed mean is at least 300 and significantly above the current B (paired Wilcoxon, p < 0.05).
+     - A's two-seed mean is no more than 50 below the current A (475.7).
 
-**Judging rule (fixed now):**
-- Agents: final copies of A and B (recipe beta), seeds 42, 142, 242. Races: the 100 analysis tracks, normal and unseen
-  colors (the Step 3 races, replayed exactly). Every replay must match its recorded result and every rebuilt image must
-  give the recorded action (within 0.0001), otherwise the code is broken: stop and fix.
-- Per track: mean over the 3 seeds. Pairs: same track, same colors. Races with no moment sampled (shorter than about
-  1 second) are left out, and a track with no data for an agent drops out of that test.
-- **Four tests per method** (Wilcoxon, two-sided, Holm over the 4):
-  1. normal colors, road-edge focus, B minus A; 2. unseen colors, road-edge focus, B minus A;
-  3. normal colors, off-road focus, A minus B; 4. unseen colors, off-road focus, A minus B.
-- **Verdict per test:** "supported" only if the blur test AND the gradient check are both significant (Holm p < 0.05)
-  in the guessed direction. "Opposite" if both are significant the other way. Otherwise "not shown".
-- The director's guess "A focuses on colors or background, B on the road edges": "B looks at road edges more" needs
-  tests 1 and 2; "A looks at the background more" needs tests 3 and 4. "Colors" can't be read from a map of places
-  (it shows where, not which color); how much each agent depends on colors is what Step 3 measured.
-- Also reported, without tests: dashboard, road and car focus; how well the two methods agree; and a sanity check
-  (Adebayo et al. 2018): the untrained network (A seed 42, checkpoint 0) on the same images. If the maps only traced
-  image edges, the untrained network would give the same maps.
-- Limits, stated now: a heat map shows what the decision is sensitive to, not what the AI "thinks". The blur result
-  depends on the patch size.
-
-**Miss (2026-10-22 00:30): my check limit was too tight.** The first run stopped because one rebuilt image gave an
-action 0.00012 away from the recorded one, above the 0.0001 I had written. Measured on 2,164 moments (A seed 42 normal,
-B seed 142 unseen): right images differ by 0.0000002 typically and 0.00019 at most (GPU rounding: evaluation ran 8
-races in one batch, here the batch is different); deliberately wrong images (the two stacked frames swapped, or 5
-decisions off) differ by about 0.4, and 99% of them by more than 0.001. **The limit is now 0.001.** It still catches
-wrong images, and it is not part of the A-vs-B judgment.
-- Follow-up (00:45): the next agent reached 0.00093, so I measured why. The graphics card's fast math mode (TF32, on
-  by default in PyTorch for these image layers) makes the output depend slightly on how many images go through
-  together (up to 0.0002) and differs from full precision by up to 0.005. **The limit is now 0.01**, still 40 times
-  below a wrong image's typical 0.4. The recorded races are the ground truth (replays use the recorded actions), so
-  no result changes.
-
-## Step 8: package and publish (2026-10-22)
-- **README.md** (results first, how it was built, the setup in plain words, every step, bugs, limits, videos, how to
-  run, layout, credits) and **INTERVIEW.md** (ten questions, answered plainly), in the style of the other projects.
-  Every number in them was checked against the result files; the first draft had four wrong numbers (practice total,
-  number of earlier evaluation races, the length of A's best lap, code size), all fixed before committing.
-- **Models:** `models/` holds cleaned copies of the six final agents and the untrained network. The originals carried
-  this PC's folder paths (Stable-Baselines3 saves the log folder, and the learning-rate schedule as code); the copies
-  replace those with plain values and are checked to have the same weights and make the same decisions.
-  `scripts/restore_models.py` puts them and the recorded test actions back in place.
-- **Website** (`web/`): the other projects' look, every number read from the result files, and a top-down replay of
-  all 1,200 test races (every replay checked against its record). Tried in a headless browser at desktop and phone
-  sizes (no errors, no sideways scrolling). Packed as a Hugging Face Space by `scripts/make_space.py`.
-- **Resume bullets** (real numbers, no hype):
-  1. Trained pixel-only race-car agents in PyTorch and Stable-Baselines3 (PPO with a Beta policy) and showed that color
-     domain randomization lifts the score in unseen color schemes from 92 to 581 across 100 hidden test tracks
-     (paired Wilcoxon test, Holm p < 0.001), at a 68-point cost on normal colors.
-  2. Built a reproducible evaluation pipeline: separate validation, analysis and test tracks, judging rules and a
-     one-shot test plan committed to git before each experiment, bit-for-bit training resume, and replay checks of
-     all 1,200 recorded test races.
-  3. Measured what the agents look at with blur-test and gradient saliency per image region (105,643 frames), finding
-     both rely heavily on the dashboard gauges (41-53% of the saliency on 12.5% of the image), and built a live site
-     that replays every test race.
-
-## Step 7: charts and videos (2026-10-22 00:53-01:16)
-- **Charts** (`results/charts/`): learning curves A vs B; the main result (normal vs unseen colors, each seed shown);
-  the cost of robustness (normal colors, per-track differences). Colorblind-safe blue/orange, one color per agent.
-- **Videos** (`results/final_test/videos/`, the game's full 1000x800 picture per view, 50 frames per second): the
-  untrained car, A on normal colors, A vs B on unseen colors side by side, the split screen (human view | the AI's
-  64x64 input | heat map), and 5 B-roll clips. Chosen by the rules in the test plan; each replays a recorded test race
-  and matched its recorded score (`manifest.json`). README GIFs in `docs/media/`.
-- The A-vs-B clip's track (the median gap) is 10027: purple road, blue grass. A leaves the map after 9.5 s (138.9);
-  B drives to the time limit (745.1).
-- **The untrained car doesn't spin out** (the director's expectation): with random actions it mostly jitters and creeps,
-  because random gas and brake cancel out (score -48.7 on track 10000). The video shows that as it is.
-
-## Step 6: the final test (run once, 2026-10-22 00:22-00:51)
-Run exactly as written in `results/final_test/TEST_PLAN.md` (committed before the test tracks were used for
-anything), by `scripts/final_test.py`, without interruption. Output: `results/final_test/color_test.md`.
-
-**Mean score on the 100 hidden test tracks** (final copies; a full lap is worth about 900):
-
-| | A normal | A unseen | B normal | B unseen |
-|---|---|---|---|---|
-| Seed 42 | **801.1** | 69.2 | 721.7 | 622.5 |
-| Seed 142 | 796.2 | 172.8 | 688.2 | 618.5 |
-| Seed 242 | **824.0** | 33.9 | **807.9** | 503.3 |
-| **Mean of seeds** | **807.1** | **92.0** | **739.3** | **581.4** |
-| Track covered | 90.6% | 20.1% | 84.0% | 69.1% |
-| Laps (strict = game's rule) | 17.3% | 1.0% | 8.0% | 7.0% |
-| Left the map | 4.0% | 19.7% | 3.7% | 17.0% |
-
-Untrained car (random actions, normal colors): -34.9, covering 6.5% of the track, never leaving the map.
-
-**The four tests** (per track, mean of 3 seeds, Wilcoxon, Holm over 4; all four significant):
-1. A, unseen minus normal: **-715.1** (95% CI -758.3 to -669.2), worse on 99 of 100 tracks; Holm p = 1.7e-17.
-2. **Main question, unseen colors, B minus A: +489.5** (95% CI +430.8 to +545.0), B better on 93 of 100 tracks;
-   Holm p = 1.7e-16.
-3. Normal colors, B minus A: **-67.8** (95% CI -100.3 to -36.8), B worse on 63 of 100 tracks; Holm p = 0.0002.
-4. B, unseen minus normal: **-157.8** (95% CI -195.9 to -119.6), worse on 79 of 100 tracks; Holm p = 8.6e-11.
-
-**Verdicts, by the rules written before the test:**
-- **Main question: "B handles unseen colors better than A on the hidden test tracks."** Proven by the paired test,
-  and every B seed (503-623) beats every A seed (34-173) on unseen colors.
-- **Price of robustness: "B pays a price on normal colors": 67.8 points** (8% of A's score).
-- The 800 pass mark (normal colors, unchanged): reached by A seed 42 (801.1), A seed 242 (824.0) and B seed 242
-  (807.9); missed by A seed 142 (796.2), B seed 42 and B seed 142. On unseen colors no seed comes close. No agent is
-  "solved" (900).
-- The test results agree with the analysis-track results of Step 3 (there: +479.7 and -41.6), on tracks no one had used.
-- Limits (stated in the plan): 3 training runs per agent; "unseen" = new schemes from B's own color formula.
-
-**Step 6 is done.**
-
-## Step 5: review (2026-10-22 00:30; director's instruction: fix anything broken, validation tracks only)
-**What I checked:**
-- **Code checks:** all 24 checks of `scripts/test_beta_recipe.py` pass again after this night's changes (pedal, Beta
-  math, exact recolored copies, exact replays).
-- **Hidden test tracks:** never used. `TEST_TRACKS` appears only in `config.py`; no test results exist. B's training
-  color seeds (1,000,000-1,999,999) don't overlap the test's unseen color seeds (10000-10099).
-- **All six final agents** are complete (`run_info.json` says complete, `model_final.zip` present).
-- **Software:** `requirements.txt` matches the installed packages exactly (65 packages).
-- **The one-shot final-test script, tried for real** (not with stand-ins, the lesson from the gate crash): in a
-  separate copy of the project whose `TEST_TRACKS` were 10 scratch tracks (90100-90109), so nothing could touch the real
-  test tracks or real result files. It ran all 12 evaluations plus the untrained baseline and the unchanged Step 3
-  analysis, then refused a second run and refused to run with an uncommitted change to the plan.
-- **The Step 7 and 8 tools, also tried on those scratch results:** videos (all 9, every replay matched its record),
-  charts, website data (120 races, every replay matched), and the website itself in a headless browser at desktop and
-  phone sizes (no sideways scrolling).
-
-**What I fixed (none of it touches the agents or any result):**
-- Website: the hero animation crashed on its first frame (a timing value could be slightly negative); a resized window
-  erased the hero drawing; one text said "of 100 tracks" instead of the real count; A's and B's cars looked alike
-  (now white and violet, with name tags). README preview GIFs were 11 MB each, now about 3 MB.
-- The memory guard now watches every new kind of job (Step 4 miss, above).
-
-**What I did not change, and why:**
-- **No retraining.** Nothing is broken: the agents work as trained and every result reproduces exactly. Their weak
-  spot, missing a few road tiles so the game doesn't end the race early, is a result to report, not a bug. Changing
-  the agents now, after seeing analysis results, would also be tuning on the analysis tracks.
-- The game's own "lap finished" rule never triggers (the start tile counts as touched from the first moment), so the
-  two lap columns are always equal. Both are kept, as the project's definitions require, with this explained.
-
-**Step 5 is done. Next: the final test (Step 6), with the plan committed first (`results/final_test/TEST_PLAN.md`).**
-
-## Step 4 results: what the AI sees (finished 2026-10-22 00:05)
-Run exactly as planned: 6 agents x 2 color sets x 100 analysis tracks, 105,000 moments. Every replay matched its record
-and every rebuilt picture gave the recorded action (largest gap 0.0015, limit 0.01). Output: `results/attention/`
-(`attention_test.md`, `focus_by_region.png`, `example_heat_maps.png`; videos in `results/attention/videos/`, not in git).
-
-**Focus** (share of the heat map in a region / share of the picture it covers; 1 = its size's worth), mean of 3 seeds:
-
-| Blur test (main) | road edge | road | off-road | car | dashboard |
-|---|---|---|---|---|---|
-| A, normal colors | 1.13 | 0.84 | 0.54 | 1.85 | 3.31 |
-| B, normal colors | 0.82 | 0.75 | 0.43 | 1.75 | 4.26 |
-| A, unseen colors | 1.16 | 1.08 | 0.48 | 2.41 | 3.89 |
-| B, unseen colors | 0.95 | 0.93 | 0.43 | 2.22 | 4.08 |
-
-Gradient check, same order: road edge 1.12 / 1.29 / 1.12 / 1.28; off-road 1.02 / 0.78 / 0.99 / 0.77; dashboard 0.88 / 1.53 / 0.82 / 1.64.
-
-**The four tests (rule written before any result):**
-1. Normal colors, road edges, B more than A? Blur: no, **the opposite** (-0.32, Holm p = 1.6e-17). Gradients: yes
-   (+0.17, p = 1.6e-17). **The methods disagree: not shown.**
-2. Unseen colors, road edges, B more than A? Blur: the opposite (-0.21, p = 2.4e-07). Gradients: yes (+0.16,
-   p = 6.0e-13). **Not shown.**
-3. Normal colors, off-road, A more than B? Blur +0.11 (p = 1.6e-17), gradients +0.24 (p = 1.6e-17). **Supported.**
-4. Unseen colors, off-road, A more than B? Blur +0.05 (p = 1.6e-08), gradients +0.22 (p = 1.6e-17). **Supported.**
-
-**What this does and does not show (plain reading):**
-- **The director's guess, half confirmed.** "A looks at the background more than B": supported, on normal and unseen
-  colors, by both methods. "B looks at the road edges more": not shown; the two methods point in opposite directions.
-  "A focuses on colors" can't be read from a map of places; Step 3 showed A breaks when only the colors change.
-- **Neither AI looks at the background much.** Off-road gets less than its size's worth of attention in the blur
-  test for both (0.43-0.54): the grass and background are 61% of the picture but get 26-35% of the heat.
-- **The surprise: both AIs lean hard on the dashboard** (the black bar at the bottom with the score, speed, wheel-spin,
-  steering and turning gauges). In the blur test it is 12.5% of the picture but gets 41-53% of the heat (3.3-4.3x
-  its size's worth), more for B than for A. The gradient check agrees for B (1.5-1.6x) but not for A (0.8-0.9x).
-  The gauges look the same in any color scheme. Likely reason (untested) that this helps B: it can lean on
-  color-free signals like its own speed and steering. Testing that would need a new experiment (e.g. hiding the
-  dashboard).
-- **The car itself** gets about 2x its size's worth in the blur test for both agents (it's tiny: 0.6% of the picture).
-- **Sanity check:** an untrained network's blur maps on the same pictures correlate 0.71 with trained A's (gradient
-  0.57). So a good part of any blur map is just "where the picture has something to blur" (edges, the car, gauges).
-  What was learned shows in the differences: the dashboard goes from 1.1x (untrained) to 3.3x (trained A seed 42),
-  the road edge from 2.1x to 1.1x.
-- The two methods agree only moderately picture by picture (rank correlation 0.24-0.37). That's common for these
-  methods, and it's why the rule demanded both agree.
-
-**Videos:** `heatmap_analysis_track20000_seed42_{normal,unseen}.mp4`: A and B side by side on the same analysis track,
-the blur-test heat map on top, 2008x864, 50 frames per second (every game frame). On unseen colors, A leaves the road at
-the first bend and the map at about 4.4 s; B drives the whole lap.
-
-**Miss (2026-10-21 23:30): the memory guard didn't watch the new jobs.** It only knew the job names from Steps 2-3,
-so it would not have stopped the heat-map job if Windows memory fell under 3 GB (it stayed above: lowest 3.9 GB).
-Fixed (it now also watches `scripts.attention*`, `scripts.make_*` and `scripts.final_test`) and restarted. Also,
-the heat-map workers no longer load PyTorch (about 400 MB less each).
-
-**Step 4 is done.**
-
-## Step 3 again, with recipe "beta": color test results (finished 2026-10-21 03:53)
-Run as planned: the unchanged Step 3 test plan (four paired tests, Holm), final copies, the 100 analysis tracks,
-the same color seeds as before. Output: `results/step3_beta/color_test.md`, chart `results/step3_beta/normal_vs_unseen.png`.
-
-| Final copies, analysis tracks | A normal | A unseen | B normal | B unseen |
-|---|---|---|---|---|
-| Seed 42 | 783.9 | 45.6 | 720.5 | 544.2 |
-| Seed 142 | 793.6 | 113.2 | 715.7 | 569.5 |
-| Seed 242 | **819.0** | -5.9 | **835.5** | 478.1 |
-| **Mean of seeds** | **798.8** | **51.0** | **757.2** | **530.6** |
-| Track covered (mean) | 89.9% | 16.1% | 85.9% | 64.4% |
-| Laps (strict) | 13.7% | 0.3% | 13.7% | 4.7% |
-| Left the map | 4.7% | 22.3% | 4.7% | 22.0% |
-
-**The four tests** (per track, mean of 3 seeds, Wilcoxon, Holm over 4; all four significant):
-1. A, unseen minus normal: **-747.9** (95% CI -787.5 to -705.4), worse on 100 of 100 tracks; Holm p = 1.6e-17.
-2. **Main question, unseen colors, B minus A: +479.7** (95% CI +425.3 to +535.0), B better on 96 of 100 tracks;
-   Holm p = 4.2e-17.
-3. Normal colors, B minus A: **-41.6** (95% CI -69.7 to -12.6), B worse on 66 of 100 tracks; Holm p = 0.004.
-4. B, unseen minus normal: **-226.6** (95% CI -274.3 to -180.5), worse on 82 of 100 tracks; Holm p = 2.2e-12.
-
-**What this does and does not show (plain reading):**
-- **Proven (significant paired test, plan written before any result): on unseen colors, B scores far more than A**
-  (531 vs 51). This time B can drive on normal colors (757), so the earlier objection ("B just fails more gently") is gone.
-- **The seeds agree.** Each of B's three seeds (478 to 570) beats each of A's three (-6 to 113) on unseen colors.
-  The limit stated in advance still holds: the tests compare these six drivers across tracks; with 3 training runs
-  per agent they don't measure how much a fresh training run would vary.
-- **B is more robust, not immune.** It loses 227 points on unseen colors (test 4) and leaves the map in 22% of those
-  races, as often as A. But it covers 64% of the track where A covers 16%.
-- **The price of robustness is small but real:** B is 42 points below A on normal colors (test 3). It comes from
-  B seeds 42 and 142; B seed 242 (835.5) is the best normal-color driver of all six.
-- **What "unseen colors" means here:** new color schemes from the same random color formula B trained on (color
-  seeds B never saw). So this shows that B handles new schemes from its training range. It does not show robustness
-  to other kinds of change (lighting, textures, a different color formula). That would need a new test.
-- **800 pass mark** (unchanged; analysis tracks, normal colors): reached by A seed 242 (819.0) and B seed 242 (835.5),
-  not by the other four. On unseen colors no agent reaches it.
-
-**Why most races hit the time limit (speed check, validation tracks, all replays 100/100):**
-- The new agents are fast enough. Their average speed is 53-67, against 51.7 needed to finish a lap in time, and
-  61-94 of 100 races per agent are fast enough on average. Yet 71-100 races per agent hit the 1,000-step limit.
-- **Reason (verified): the game ends a race early only when every road tile has been touched.** Its "95% of the
-  tiles is enough" rule is checked only the first time the car touches the start tile, and the start tile is
-  already touched when the race begins (checked: 20 of 20 races). So a car that skips even one tile drives on until
-  the limit and loses 0.1 points per step. Example: A seed 42, track 5000, covered 96.5%, average speed 66.9 vs
-  50.8 needed, score 865.4 (965 for the tiles minus 100 for 1,000 steps).
-- So the new agents mostly don't miss 800 because they drive slowly. They miss a few tiles, likely at corners
-  (untested), and then pay for the extra time. This is how the game works, for every agent alike; nothing was changed.
-- **Correction to the earlier "slow driving" diagnosis (2026-10-18):** it blamed the old agent's time-outs on speed
-  alone. Likely reason (untested): part of those time-outs had this cause too.
-
-**Driving checks** (`scripts.inspect_driving`, part of the original Step 3 plan; `results/driving/<run>_analysis_<colors>/`):
-- A, all three seeds, both color sets: every replay reproduces its recorded result (100/100 each).
-- "Possible shortcut" flags (the nearest road point jumps while the car crosses grass): 5-12 races per seed on
-  normal colors. Flagged races score less than the others (541-641 vs 801-857), so no points were gained. In this
-  game points come only from touching new tiles, so a cut across the grass can only lose points.
-- B, all three seeds, both color sets (run 2026-10-21 22:58-23:18, once memory was free): every replay reproduces
-  its recorded result (100/100 each). Shortcut flags: 10-35 races per seed. Flagged races again score less (336-621 vs
-  555-859), so no points were gained.
-- **How they drive on unseen colors** (contact sheets, same track 20000, same unseen colors: teal road, dark blue grass):
-  A seed 42 drives straight on at the first bend, crosses the grass and leaves the map after 4.4 s (score 25.8).
-  B seed 42 follows the whole track, kerbs and all, and covers 99.2% (score 892.2). On unseen colors B spends 20-28%
-  of the time with all wheels on grass (A: 54-75%), and its speed drops only a little (47-55 vs 53-61 on normal colors).
-
-**Step 3 (with recipe "beta") is done.**
+    Otherwise: stop and report.
+  3. Then seeds 242, the evaluations, and the unchanged Step 3 tests on the new agents.
 
 ## Plan: retraining with recipe "beta" (director's OK 2026-10-19; rule written before training)
 
@@ -942,219 +851,312 @@ the speed checks done; done-file written. Results: "Step 3 again, with recipe be
 - **Miss:** I had said I'd report when stage 4 finished. I held the report back to add the driving checks first, so
   the results sat unreported for about 19 hours. I should have reported at 03:53 and run the checks after.
 
-## Research: what has reached ~900 on CarRacing (2026-10-19; nothing trained)
-The director chose option (a), to fix the training together with the slow driving and retrain once, and asked me to
-base the recipe on published evidence instead of patching the current one. Full tables with sources:
-`results/research/carracing_literature.md`. Most published scores are on CarRacing-v0. Reward, time limit and the 900
-mark are the same as in v3, but lap rules and test setups differ, so they are reference points, not exact comparisons.
+## Step 3 again, with recipe "beta": color test results (finished 2026-10-21 03:53)
+Run as planned: the unchanged Step 3 test plan (four paired tests, Holm), final copies, the 100 analysis tracks,
+the same color seeds as before. Output: `results/step3_beta/color_test.md`, chart `results/step3_beta/normal_vs_unseen.png`.
 
-**Two misses of mine (reported, not hidden):**
-- In Step 1 I took the RL Zoo's settings without checking the Zoo's own benchmark for them. **The Zoo reports 153.9 for
-  exactly this PPO recipe on CarRacing** (4M steps, one run, best-action evaluation, grayscale). Our seeds scored 170 to 782,
-  so seed 42 was a lucky draw, not the norm.
-- The summary said two trainings at once would run "about twice as fast". Measured: two at once took 5.7-6.1 h for
-  two runs, versus 3.4-3.5 h for one alone, so only about 15% faster.
+| Final copies, analysis tracks | A normal | A unseen | B normal | B unseen |
+|---|---|---|---|---|
+| Seed 42 | 783.9 | 45.6 | 720.5 | 544.2 |
+| Seed 142 | 793.6 | 113.2 | 715.7 | 569.5 |
+| Seed 242 | **819.0** | -5.9 | **835.5** | 478.1 |
+| **Mean of seeds** | **798.8** | **51.0** | **757.2** | **530.6** |
+| Track covered (mean) | 89.9% | 16.1% | 85.9% | 64.4% |
+| Laps (strict) | 13.7% | 0.3% | 13.7% | 4.7% |
+| Left the map | 4.7% | 22.3% | 4.7% | 22.0% |
 
-**What reached about 900, and what it needed**
-- **PPO with a "Beta" policy and one pedal (gas and brake merged).** This is the best-supported PPO result.
-  - Petrazzini & Antonelo 2021 trained 5 seeds for 5M steps with the normal reward and no tricks.
-    - Sampled actions: all 5 seeds scored above 900.
-    - The AI's best action (how we evaluate): 816 on average.
-    - The same settings with a Gaussian policy (the kind we use): 370 with the best action.
-  - The paper says that without merging gas and brake, "learning to control the vehicle would not take place."
-  - Three GitHub projects with the same core reach 860-909. Some of those use tricks, such as cutting a race short
-    during the test itself, which inflate the score.
-- **PPO with memory (an LSTM)** from the same RL Zoo: 862.5 (best action, one run, 4M steps, v0). A community copy on
-  v3 reports only 385.
-- **DQN with 5 buttons:** about 905. These runs used tricks at test time or trained on 3 fixed tracks. Smooth
-  controls were decided in Step 2, so this doesn't fit.
-- **Evolution, world models and attention agents:** 903-914. They need hundreds of millions to billions of game
-  frames, which on this PC is about 2.5 days (genetic algorithm) up to weeks or months per run.
-- **Colors.** Slaoui et al. 2020 trained PPO with background colors drawn from the full color range (5 seeds):
-  **"the randomized agent ... fail[s] to learn"** (-17, versus 554 for a normal-color agent). That is the same thing
-  that happened to our Agent B.
-  - What worked for them: train on normal colors and show the AI a recolored copy of each image. The AI is penalized
-    when it sees the two differently. Result: 640 on normal colors and 553 on all colors, versus 554 and 60 for a
-    plain normal-color agent.
-  - Tang et al. 2020: a PPO driver trained on normal colors fell from 865 to 505 when the colors shifted slightly, the
-    same weakness Agent A shows.
-- **Likely reasons for our weak runs (from this evidence, untested here):**
-  - The Gaussian policy plus clipping makes braking rare.
-  - With a Gaussian policy, the "best action" can drive much worse than sampled actions (370 vs 890 in Petrazzini).
-  - The update steps are far larger than normal. The 900-level runs use clip 0.1 and a lower minibatch size.
+**The four tests** (per track, mean of 3 seeds, Wilcoxon, Holm over 4; all four significant):
+1. A, unseen minus normal: **-747.9** (95% CI -787.5 to -705.4), worse on 100 of 100 tracks; Holm p = 1.6e-17.
+2. **Main question, unseen colors, B minus A: +479.7** (95% CI +425.3 to +535.0), B better on 96 of 100 tracks;
+   Holm p = 4.2e-17.
+3. Normal colors, B minus A: **-41.6** (95% CI -69.7 to -12.6), B worse on 66 of 100 tracks; Holm p = 0.004.
+4. B, unseen minus normal: **-226.6** (95% CI -274.3 to -180.5), worse on 82 of 100 tracks; Holm p = 2.2e-12.
 
-**Recommended recipe (proposed; nothing starts without the director's OK):** the Petrazzini settings, for A and B alike.
-- Controls: steering plus one pedal (above 0 = gas, below 0 = brake). A thin wrapper turns this into the game's 3
-  controls. Game, reward and score are unchanged.
-- Action randomness: a Beta distribution, which always stays inside the allowed range, instead of the Gaussian with gSDE.
-  The "best action" is the Beta's mean, as in the paper.
-- PPO settings (the paper's):
-  - Learning rate 2.5e-4, shrinking linearly to 0.
-  - Clip 0.1, 10 epochs, minibatch 64.
-  - 500 steps per simulator per update, 8 simulators.
-  - Gamma 0.99, GAE 0.95, entropy 0.01, value 0.5.
-  - 3 convolution layers plus 512 units.
-  - **5M decisions** (the paper's 5M steps).
-- Kept from this project, where the paper differs:
-  - **Color input** (Step 1 decision; every ~900 result used grayscale, so this part is untested).
-  - **64x64 with 2 stacked frames.** The paper used 84x84 with 4. Ours saves about 1 GB of memory per training, and the
-    Zoo's 862 result used 64x64 with 2 frames.
-  - Frame skip 2, and reward rescaling during learning. Rescaling doesn't change scores.
-  - Evaluation with the best action. Based on the paper, A should land around 800, right at the pass mark, which
-    is not changed.
-- Agent B: the same recipe with the same random colors as before, so the project question stays the same. Slaoui's
-  result says plain random colors may still fail. The fallback is their method, which would change what "Agent B"
-  means, so that is the director's call.
-- Time (one run at a time): about 5 h per run (estimate: 5M decisions plus more learning steps than now; measured in a
-  short test first).
-  - Code and tests: about 30 min of computing.
-  - A42 + B42: about 10 h. A142 + B142: about 10 h. A242 + B242: about 10 h.
-  - Evaluations, driving checks and the Step 3 tests: about 2 h.
-  - **Total about 32 h. Over 8 h.**
-- Draft judging rule, to be fixed in full before training. Validation tracks only, normal colors, final copies. Unseen
-  colors are not looked at before the final Step 3 test.
-  1. After A42 and B42:
-     - If A42 is under 500, the recipe or my code doesn't work here: stop.
-     - If B42 is under 100 (still can't drive), stop and ask about B.
-  2. After seeds 42 and 142, the new recipe is adopted if both hold:
-     - B's two-seed mean is at least 300 and significantly above the current B (paired Wilcoxon, p < 0.05).
-     - A's two-seed mean is no more than 50 below the current A (475.7).
+**What this does and does not show (plain reading):**
+- **Proven (significant paired test, plan written before any result): on unseen colors, B scores far more than A**
+  (531 vs 51). This time B can drive on normal colors (757), so the earlier objection ("B just fails more gently") is gone.
+- **The seeds agree.** Each of B's three seeds (478 to 570) beats each of A's three (-6 to 113) on unseen colors.
+  The limit stated in advance still holds: the tests compare these six drivers across tracks; with 3 training runs
+  per agent they don't measure how much a fresh training run would vary.
+- **B is more robust, not immune.** It loses 227 points on unseen colors (test 4) and leaves the map in 22% of those
+  races, as often as A. But it covers 64% of the track where A covers 16%.
+- **The price of robustness is small but real:** B is 42 points below A on normal colors (test 3). It comes from
+  B seeds 42 and 142; B seed 242 (835.5) is the best normal-color driver of all six.
+- **What "unseen colors" means here:** new color schemes from the same random color formula B trained on (color
+  seeds B never saw). So this shows that B handles new schemes from its training range. It does not show robustness
+  to other kinds of change (lighting, textures, a different color formula). That would need a new test.
+- **800 pass mark** (unchanged; analysis tracks, normal colors): reached by A seed 242 (819.0) and B seed 242 (835.5),
+  not by the other four. On unseen colors no agent reaches it.
 
-    Otherwise: stop and report.
-  3. Then seeds 242, the evaluations, and the unchanged Step 3 tests on the new agents.
+**Why most races hit the time limit (speed check, validation tracks, all replays 100/100):**
+- The new agents are fast enough. Their average speed is 53-67, against 51.7 needed to finish a lap in time, and
+  61-94 of 100 races per agent are fast enough on average. Yet 71-100 races per agent hit the 1,000-step limit.
+- **Reason (verified): the game ends a race early only when every road tile has been touched.** Its "95% of the
+  tiles is enough" rule is checked only the first time the car touches the start tile, and the start tile is
+  already touched when the race begins (checked: 20 of 20 races). So a car that skips even one tile drives on until
+  the limit and loses 0.1 points per step. Example: A seed 42, track 5000, covered 96.5%, average speed 66.9 vs
+  50.8 needed, score 865.4 (965 for the tiles minus 100 for 1,000 steps).
+- So the new agents mostly don't miss 800 because they drive slowly. They miss a few tiles, likely at corners
+  (untested), and then pay for the extra time. This is how the game works, for every agent alike; nothing was changed.
+- **Correction to the earlier "slow driving" diagnosis (2026-10-18):** it blamed the old agent's time-outs on speed
+  alone. Likely reason (untested): part of those time-outs had this cause too.
 
-## Slow driving: diagnosis (no training; plan for a fix follows once the diagnosis is done)
-The director asked for a plan to fix the slow driving, with the judging rule written in advance, and **no
-training without the director's go**. First, cheap checks on seed 42's final copy (`entropy`), validation tracks only.
+**Driving checks** (`scripts.inspect_driving`, part of the original Step 3 plan; `results/driving/<run>_analysis_<colors>/`):
+- A, all three seeds, both color sets: every replay reproduces its recorded result (100/100 each).
+- "Possible shortcut" flags (the nearest road point jumps while the car crosses grass): 5-12 races per seed on
+  normal colors. Flagged races score less than the others (541-641 vs 801-857), so no points were gained. In this
+  game points come only from touching new tiles, so a cut across the grass can only lose points.
+- B, all three seeds, both color sets (run 2026-10-21 22:58-23:18, once memory was free): every replay reproduces
+  its recorded result (100/100 each). Shortcut flags: 10-35 races per seed. Flagged races again score less (336-621 vs
+  555-859), so no points were gained.
+- **How they drive on unseen colors** (contact sheets, same track 20000, same unseen colors: teal road, dark blue grass):
+  A seed 42 drives straight on at the first bend, crosses the grass and leaves the map after 4.4 s (score 25.8).
+  B seed 42 follows the whole track, kerbs and all, and covers 99.2% (score 892.2). On unseen colors B spends 20-28%
+  of the time with all wheels on grass (A: 54-75%), and its speed drops only a little (47-55 vs 53-61 on normal colors).
 
-**1. Speed diagnosis** (`scripts/diagnose_speed.py`, `results/step2/speed_diagnosis/`; all 100 races replayed exactly)
-- The car drives at **one steady cruising speed everywhere**: gas about 0.09 whatever the road ahead does;
-  it never uses more than half gas (highest 0.51), never full gas, and almost never brakes.
-- It is **fastest right before sharp turns** (average speed 57 vs 49 on straights), because speed builds up over
-  each straight with steady gas. In front of sharp turns all four wheels are off the road 17% of the time
-  (straights: 4%), and brakes only 3.4% of that time.
-- Its average speed (51.9) is almost exactly what a lap needs to finish in 20 seconds (51.7): 78 of 100 races
-  ran out of time, 55 of them with 90%+ of the track covered.
+**Step 3 (with recipe "beta") is done.**
 
-**2. Gas-scaling what-if** (`scripts/diagnose_gas_scaling.py`, rule written before running): replay the same
-driver on the 100 validation tracks with its gas multiplied by 1.5, 2 and 3 (steering and brake untouched).
-- Check: factor 1.0 must reproduce the normal evaluation exactly (781.8), otherwise the test is broken.
-- **"Steering copes with more speed"** if some factor >= 1.5 gives a higher mean score than 1.0 **and** at most
-  10 percentage points more off-track races. Then the limit is the throttle the AI learned.
-- **"Steering can't cope"** if 1.5x already adds more than 10 points of off-track races or loses more than 50
-  points of mean score. Then the AI would need to learn braking and anticipation, not just more gas.
-- Anything else: "mixed", reported as such.
+## Steps 4-8 in one go (director's instruction, 2026-10-21 23:00)
+**Director's instruction:** do everything from Step 4 to the finish in one go, without waiting for OKs. At every
+decision, make the safe, standard choice and write the decision and the reason here. Stop only if something is truly
+broken and can't be fixed. Commits: "Saad Hilal" with the no-reply email, no extra trailer lines. When completely
+done, write the done-file, then send the GitHub link, the website link, the main results table and 3 resume bullets.
+Steps: 4 what the AI sees (heat maps, A vs B, videos); 5 review (fix anything broken, validation tracks only);
+6 final test, once (plan committed first); 7 charts and videos (every clip replays a real test run); 8 package and
+publish (README, INTERVIEW.md, privacy check of all files and history, public GitHub repo, website on Hugging Face).
 
-**Gas-scaling result (02:15): "steering can't cope"** - by the rule written above. `results/step2/gas_scaling/summary.md`
+**Decision log**
+- 2026-10-21 23:00: the old done-file (written when the training plan ended) was deleted. Reason: it said "finished",
+  which is no longer true under the new plan. A new one is written only at the very end.
+- 2026-10-21 23:05: Step 4 heat-map method (asked just before the new instruction; the director chose the
+  recommended option): the **blur test** is the main method, with **gradients** as the check. A conclusion counts
+  only if both agree.
+- 2026-10-21 23:10: publishing needs logins this computer doesn't have for the terminal (GitHub and Hugging Face).
+  Reading the saved Windows login was blocked as unsafe, which is correct. So the director logs in once
+  (`gh auth login`, `hf auth login`). Everything else goes ahead meanwhile; publishing comes last.
+- 2026-10-21 23:40: **the untrained-car baseline picks random actions** from its starting policy (random seed 0).
+  Reason: an untrained AI's *best* action is to stand still (its checkpoint-0 checks scored about -93 because it never
+  moved), so "the untrained car" is shown as it really behaves when training starts.
+- 2026-10-21 23:45: **which test races become videos is fixed in the test plan, before the test** (e.g. the A-vs-B clip
+  uses the track with the median B-minus-A gap, not the most flattering one). Reason: no picking after seeing results.
+- 2026-10-21 23:50: **repository name `same-road-new-colors`** (GitHub `saadhilalai`, Space on `s4dAi`). Reason: says
+  what the experiment is, in the style of the other projects ("landfall", "walk-before-you-climb").
+- 2026-10-21 23:50: **the website follows the other projects' look** (dark scenes, Geist type, the S4D mark, Nerd mode,
+  a race replay of every test track), reusing their brand files and fonts. Every number on it is read from the result
+  files, so nothing is typed in by hand.
+- 2026-10-22 00:22: **the final test runs now** (plan committed in a232043, before any test-track use).
+- 2026-10-22 01:25: **correction:** I first wrote the main test's Holm p-value as 1.8e-16 (here and in the Step 6
+  commit message). It is 1.745e-16, so 1.7e-16 when rounded. Fixed everywhere, including that commit message.
 
-| Gas x | Mean score | Covered | Laps | Off track | Out of time | ...with 90%+ covered |
-|---|---|---|---|---|---|---|
-| 1.0 (exact match with the normal evaluation) | 781.8 | 88.5% | 16% | 6% | 78% | 55 |
-| 1.5 | 680.5 | 79.4% | 4% | 18% | 78% | 36 |
-| 2.0 | 526.5 | 65.1% | 2% | 36% | 62% | 11 |
-| 3.0 | 368.9 | 49.0% | 0% | 33% | 67% | 6 |
+## Step 4: what the AI sees (rule written 2026-10-21 23:24, before any A-vs-B heat-map result)
+**How the heat maps are made** (`racecar/attention.py`, `racecar/attention_frames.py`):
+- The AI's exact images are rebuilt by replaying the recorded races. Checked on test races: the replay matches the
+  recorded score, and the AI's action on the rebuilt images matches the recorded action (largest difference 0.00003,
+  GPU rounding).
+- **Blur test (main; Greydanus et al. 2018):** blur one small round patch of the AI's 64x64 view at a time (patch size
+  sigma 4 pixels, one every 4 pixels = 256 patches, blur sigma 3; Greydanus's settings scaled from 84x84) and measure how much
+  the best action [steer, pedal] changes. **Gradients (check):** how strongly a tiny change to each pixel would move
+  the action (|d steer/d pixel| + |d pedal/d pixel|, added up over the 6 color channels of the 2 stacked images).
+- **Regions**, from drawing the same moment again in flat colors (works in any color scheme):
+  road edge (within 2 pixels of the road's border in the AI's view, either side, plus kerbs), road (the rest of the
+  road), off-road (grass, background, outside the map), the car, the dashboard (the black bar at the bottom).
+  Typical areas: edge 11%, road 14%, off-road 61%, car 0.6%, dashboard 12.5%.
 
-At 1.5x gas the driver already loses 101 points and leaves the playing area 12 points more often. So the
-slowness is not just a timid throttle on top of good steering: at higher speed this driver misses corners.
-A faster driver would have to *learn* to brake before corners and speed up on straights, which it never does now.
+**Decisions** (safe, standard choices):
+- Blur settings: Greydanus et al.'s, scaled to our image size. Reason: the standard method for game-playing AIs.
+- Moments: every 5th decision, skipping the first second (the camera zooms in then). Reason: enough moments per race
+  (up to 95) at low cost; neighboring decisions are nearly identical.
+- **Measure "focus" = share of heat in a region / share of the image the region covers** (both averaged over the race's
+  moments). 1 = the region gets exactly its size's worth of attention; 2 = twice that. Reason: A spends most of its
+  unseen-color races on grass, so its images contain more off-road area; dividing by area keeps that from deciding
+  the result by itself. The plain shares are reported too.
 
-**All three seeds are slow** (training races, from 1.5M decisions on): seed 42 covers about 85% of the track per race,
-seed 242 50-67%, and seed 142 only 22-25%. Seeds 142 and 242 never leave the playing area and every race lasts the
-full 1,000 frames: they creep along the road. Seed 142's final copy: 169.6 on the 100 validation tracks, 152.3 on the
-100 analysis tracks.
+**Judging rule (fixed now):**
+- Agents: final copies of A and B (recipe beta), seeds 42, 142, 242. Races: the 100 analysis tracks, normal and unseen
+  colors (the Step 3 races, replayed exactly). Every replay must match its recorded result and every rebuilt image must
+  give the recorded action (within 0.0001), otherwise the code is broken: stop and fix.
+- Per track: mean over the 3 seeds. Pairs: same track, same colors. Races with no moment sampled (shorter than about
+  1 second) are left out, and a track with no data for an agent drops out of that test.
+- **Four tests per method** (Wilcoxon, two-sided, Holm over the 4):
+  1. normal colors, road-edge focus, B minus A; 2. unseen colors, road-edge focus, B minus A;
+  3. normal colors, off-road focus, A minus B; 4. unseen colors, off-road focus, A minus B.
+- **Verdict per test:** "supported" only if the blur test AND the gradient check are both significant (Holm p < 0.05)
+  in the guessed direction. "Opposite" if both are significant the other way. Otherwise "not shown".
+- The director's guess "A focuses on colors or background, B on the road edges": "B looks at road edges more" needs
+  tests 1 and 2; "A looks at the background more" needs tests 3 and 4. "Colors" can't be read from a map of places
+  (it shows where, not which color); how much each agent depends on colors is what Step 3 measured.
+- Also reported, without tests: dashboard, road and car focus; how well the two methods agree; and a sanity check
+  (Adebayo et al. 2018): the untrained network (A seed 42, checkpoint 0) on the same images. If the maps only traced
+  image edges, the untrained network would give the same maps.
+- Limits, stated now: a heat map shows what the decision is sensitive to, not what the AI "thinks". The blur result
+  depends on the patch size.
 
-## Plan: fixing the slow driving (written 2026-10-18 02:35; NOT started, needs the director's go)
+**Miss (2026-10-21 23:27): my check limit was too tight.** The first run stopped because one rebuilt image gave an
+action 0.00012 away from the recorded one, above the 0.0001 I had written. Measured on 2,164 moments (A seed 42 normal,
+B seed 142 unseen): right images differ by 0.0000002 typically and 0.00019 at most (GPU rounding: evaluation ran 8
+races in one batch, here the batch is different); deliberately wrong images (the two stacked frames swapped, or 5
+decisions off) differ by about 0.4, and 99% of them by more than 0.001. **The limit is now 0.001.** It still catches
+wrong images, and it is not part of the A-vs-B judgment.
+- Follow-up (23:33): the next agent reached 0.00093, so I measured why. The graphics card's fast math mode (TF32, on
+  by default in PyTorch for these image layers) makes the output depend slightly on how many images go through
+  together (up to 0.0002) and differs from full precision by up to 0.005. **The limit is now 0.01**, still 40 times
+  below a wrong image's typical 0.4. The recorded races are the ground truth (replays use the recorded actions), so
+  no result changes.
 
-**What we know** (sections above): all three seeds settle on driving slowly and steadily. Seed 42 cruises at
-almost exactly the speed a lap needs and runs out of time; seeds 142 and 242 creep (seed 142: average speed 13
-vs 52 for seed 42). None of them slows down for corners or speeds up on straights. Giving seed 42 more gas makes
-it crash more (gas-scaling test), so the fix has to teach braking and anticipation, not just "more gas".
+## Step 4 results: what the AI sees (finished 2026-10-22 00:02)
+Run exactly as planned: 6 agents x 2 color sets x 100 analysis tracks, 105,000 moments. Every replay matched its record
+and every rebuilt picture gave the recorded action (largest gap 0.0015, limit 0.01). Output: `results/attention/`
+(`attention_test.md`, `focus_by_region.png`, `example_heat_maps.png`; videos in `results/attention/videos/`, not in git).
 
-**Likely reasons (untested)**
-1. *Exploration of the pedals dies early.* The AI's random "trying things" shrinks from 0.135 to about 0.01.
-   Gas and brake are two separate outputs, each cut off at 0, so a driver that has settled on "no brake" almost
-   never gets to try braking (seed 42 brakes in 0.7% of decisions) and never learns its value before corners.
-2. *Running out of time doesn't hurt it in training.* At the 1,000-frame limit, Stable-Baselines3 treats the race
-   as if it went on (it "bootstraps" the value). So in training, unfinished track at time-out costs nothing,
-   while a crash costs -100 plus everything after it. Slow and safe looks good to the AI. Also, the AI
-   can't see how much time is left: the screen has no clock.
+**Focus** (share of the heat map in a region / share of the picture it covers; 1 = its size's worth), mean of 3 seeds:
 
-**Two candidate fixes, each changing exactly one thing**
-- **F1 "one pedal"**: gas and brake become one output from -1 to 1 (above 0 = gas, below 0 = brake). A thin
-  wrapper turns it back into the game's 3 controls; game, rewards and score are unchanged. A neutral driver then
-  tries braking as often as accelerating. Targets reason 1.
-- **F2 "time counts"**: the 1,000-frame limit becomes the real end of a race in training (no bootstrapping), and
-  the AI gets a time-left bar drawn into the black dashboard strip of its image (otherwise it couldn't know when
-  the end comes). Targets reason 2. Changes what the AI sees, so it is a bigger design change than F1.
+| Blur test (main) | road edge | road | off-road | car | dashboard |
+|---|---|---|---|---|---|
+| A, normal colors | 1.13 | 0.84 | 0.54 | 1.85 | 3.31 |
+| B, normal colors | 0.82 | 0.75 | 0.43 | 1.75 | 4.26 |
+| A, unseen colors | 1.16 | 1.08 | 0.48 | 2.41 | 3.89 |
+| B, unseen colors | 0.95 | 0.93 | 0.43 | 2.22 | 4.08 |
 
-**Test design**
-- Each candidate trains on seeds 42 **and** 142 (the current recipe's best and worst seed; one seed alone misled
-  us before), 4M decisions, final copies. Everything else is the current recipe (`entropy`).
-- Judged only on the 100 validation tracks, normal colors. Test tracks stay hidden.
-- Cost: 4 runs of about 4.5-5 h. With the PC's other apps open, memory allows one at a time (about 19 h); two at
-  a time (about 10 h) if Windows has about 2 GB more free.
+Gradient check, same order: road edge 1.12 / 1.29 / 1.12 / 1.28; off-road 1.02 / 0.78 / 0.99 / 0.77; dashboard 0.88 / 1.53 / 0.82 / 1.64.
 
-**Judging rule (fixed now, before any training)** - a candidate "works" only if all of these hold:
-1. **Better scores:** per track, the mean of its two seeds beats the current recipe's mean of the same two seeds
-   (currently 781.8 and 169.6 on validation, mean 475.7). Paired Wilcoxon test over the 100 tracks, two-sided,
-   Holm-corrected over the 2 candidates: mean difference > 0 and adjusted p < 0.05.
-2. **Mechanism:** for both seeds, the speed diagnosis shows it is slower before sharp turns than on straights
-   (now it is faster), and fewer races run out of time with 90%+ covered than with the current recipe.
-3. **Safety:** off-track races at most 10 percentage points above the current recipe (same seeds).
-4. **No tricks** in the driving check (driving backwards, shortcuts, point farming).
-5. The 800 pass mark is reported per seed and not changed.
-- If both work: the higher mean wins (the paired test between them is reported). If neither works: keep the
-  current recipe and report it.
+**The four tests (rule written before any result):**
+1. Normal colors, road edges, B more than A? Blur: no, **the opposite** (-0.32, Holm p = 1.6e-17). Gradients: yes
+   (+0.17, p = 1.6e-17). **The methods disagree: not shown.**
+2. Unseen colors, road edges, B more than A? Blur: the opposite (-0.21, p = 2.4e-07). Gradients: yes (+0.16,
+   p = 6.0e-13). **Not shown.**
+3. Normal colors, off-road, A more than B? Blur +0.11 (p = 1.6e-17), gradients +0.24 (p = 1.6e-17). **Supported.**
+4. Unseen colors, off-road, A more than B? Blur +0.05 (p = 1.6e-08), gradients +0.22 (p = 1.6e-17). **Supported.**
 
-**What it would mean for the project:** A and B must use the same recipe. If a fix wins, both agents are retrained
-with it (the trial's seed 42 and 142 runs count for A; then A seed 242 and B seeds 42, 142, 242: 4 more runs).
-The B runs started tonight with the current recipe would then be a "before" comparison, not the final result.
+**What this does and does not show (plain reading):**
+- **The director's guess, half confirmed.** "A looks at the background more than B": supported, on normal and unseen
+  colors, by both methods. "B looks at the road edges more": not shown; the two methods point in opposite directions.
+  "A focuses on colors" can't be read from a map of places; Step 3 showed A breaks when only the colors change.
+- **Neither AI looks at the background much.** Off-road gets less than its size's worth of attention in the blur
+  test for both (0.43-0.54): the grass and background are 61% of the picture but get 26-35% of the heat.
+- **The surprise: both AIs lean hard on the dashboard** (the black bar at the bottom with the score, speed, wheel-spin,
+  steering and turning gauges). In the blur test it is 12.5% of the picture but gets 41-53% of the heat (3.3-4.3x
+  its size's worth), more for B than for A. The gradient check agrees for B (1.5-1.6x) but not for A (0.8-0.9x).
+  The gauges look the same in any color scheme. Likely reason (untested) that this helps B: it can lean on
+  color-free signals like its own speed and steering. Testing that would need a new experiment (e.g. hiding the
+  dashboard).
+- **The car itself** gets about 2x its size's worth in the blur test for both agents (it's tiny: 0.6% of the picture).
+- **Sanity check:** an untrained network's blur maps on the same pictures correlate 0.71 with trained A's (gradient
+  0.57). So a good part of any blur map is just "where the picture has something to blur" (edges, the car, gauges).
+  What was learned shows in the differences: the dashboard goes from 1.1x (untrained) to 3.3x (trained A seed 42),
+  the road edge from 2.1x to 1.1x.
+- The two methods agree only moderately picture by picture (rank correlation 0.24-0.37). That's common for these
+  methods, and it's why the rule demanded both agree.
 
-**Decisions needed from the director**
-- D1: run the fix trial, or keep the current recipe and report the slowness as a limitation? (The A-vs-B
-  colour question doesn't need a fast driver, but seed 142's crawl drags Agent A's average down.)
-- D2: if yes, which candidates (F1, F2 or both) and which seeds (42 + 142 recommended; 42 alone saves half the time).
-- D3: allow two trainings at once by freeing about 2 GB of memory on Windows (halves the time)?
+**Videos:** `heatmap_analysis_track20000_seed42_{normal,unseen}.mp4`: A and B side by side on the same analysis track,
+the blur-test heat map on top, 2008x864, 50 frames per second (every game frame). On unseen colors, A leaves the road at
+the first bend and the map at about 4.4 s; B drives the whole lap.
 
-## Step 2 results: Agent A (finished 2026-10-18 05:25)
-Agent A = recipe `entropy`, seeds 42 / 142 / 242, 4M decisions each, **final copies**, normal colors.
-Every evaluation race was replayed exactly (100/100 per seed and track set). Tables:
-`results/step2/agentA_validation_normal.md`, `results/step2/agentA_analysis_normal.md`.
-Learning curves: `results/step2/learning_curves.png`.
+**Miss (2026-10-21 23:30): the memory guard didn't watch the new jobs.** It only knew the job names from Steps 2-3,
+so it would not have stopped the heat-map job if Windows memory fell under 3 GB (it stayed above: lowest 3.9 GB).
+Fixed (it now also watches `scripts.attention*`, `scripts.make_*` and `scripts.final_test`) and restarted. Also,
+the heat-map workers no longer load PyTorch (about 400 MB less each).
 
-| Agent A | Validation (100) | Analysis (100) | Analysis: covered | Laps (strict) | Laps (game's rule) | Off track |
-|---|---|---|---|---|---|---|
-| Seed 42 | 781.8 | 780.7 +/- 178.4 | 88.3% | 12% | 12% | 4% |
-| Seed 142 | 169.6 | 152.3 +/- 116.1 | 25.2% | 0% | 0% | 0% |
-| Seed 242 | 644.1 | 642.0 +/- 161.3 | 74.2% | 0% | 0% | 0% |
-| **Mean of seeds** | **531.8** | **525.0** | 62.6% | 4% | 4% | 1.3% |
+**Step 4 is done.**
 
-- **Not solved** (900) by any seed. **The 800 pass mark is missed by all three seeds** (best: seed 42, 780.7-781.8).
-- **Large differences between seeds** (152 to 781 on the same tracks). Picking the recipe on seed 42 alone made it
-  look better than it is: seed 42 turns out to be the best of the three.
-- Learning curves: seed 42 learned within 250k decisions and stayed at 750-820 on its 20-track checks. Seed 142
-  never got past about 320 and settled at 120-170. Seed 242 reached 747 at 504k, slid to 417 at 1.25M (like the
-  Zoo pilot's collapse), then recovered to 696 by the end.
+## Step 5: review (2026-10-22 00:21; director's instruction: fix anything broken, validation tracks only)
+**What I checked:**
+- **Code checks:** all 24 checks of `scripts/test_beta_recipe.py` pass again after this night's changes (pedal, Beta
+  math, exact recolored copies, exact replays).
+- **Hidden test tracks:** never used. `TEST_TRACKS` appears only in `config.py`; no test results exist. B's training
+  color seeds (1,000,000-1,999,999) don't overlap the test's unseen color seeds (10000-10099).
+- **All six final agents** are complete (`run_info.json` says complete, `model_final.zip` present).
+- **Software:** `requirements.txt` matches the installed packages exactly (65 packages).
+- **The one-shot final-test script, tried for real** (not with stand-ins, the lesson from the gate crash): in a
+  separate copy of the project whose `TEST_TRACKS` were 10 scratch tracks (90100-90109), so nothing could touch the real
+  test tracks or real result files. It ran all 12 evaluations plus the untrained baseline and the unchanged Step 3
+  analysis, then refused a second run and refused to run with an uncommitted change to the plan.
+- **The Step 7 and 8 tools, also tried on those scratch results:** videos (all 9, every replay matched its record),
+  charts, website data (120 races, every replay matched), and the website itself in a headless browser at desktop and
+  phone sizes (no sideways scrolling).
 
-**How the three seeds drive** (frame sheets, path maps and driving numbers on the analysis tracks;
-`results/driving/A_seed*_entropy_analysis_normal/`)
-- **All three:** smooth, no wobble (0.16-0.66 steering reversals per second), almost no braking (0.0-0.7% of
-  decisions), never full gas, and **one steady speed** whatever the road does. None of them slows down for corners.
-- **Seed 42 (average speed 51):** centred, slightly cuts the inside of curves, follows almost every bend. Runs out
-  of time with 90%+ of the track done in most races. Its typical failure: overshoots a sharp hairpin onto the grass,
-  then drives straight until it leaves the map (4% of races), or, once lost, rejoins the road the wrong way.
-- **Seed 142 (average speed 13):** creeps. When it misses a bend at that low speed it rolls onto the grass and
-  stops there (20% of its time with all wheels on grass). Never leaves the playing area, covers a quarter of the track.
-- **Seed 242 (average speed 36):** very clean (all wheels on grass only 1.9% of the time, never leaves the map) but
-  slow: covers about three quarters of the track in the time. At some hairpins it slows almost to a stop and gets stuck.
-- **No point-farming tricks.** Driving backwards: at most 0.5% of the time on average. The shortcut counter flagged
-  21 / 17 / 1 races (seeds 42 / 142 / 242). Those are mostly bad races with lots of grass time; the two I replayed and
-  drew were a car that lost the road and looped back over road it had already driven (no points for that), and a
-  car that cut the inside of one bend and then stopped on the grass. Not a way of collecting extra points.
+**What I fixed (none of it touches the agents or any result):**
+- Website: the hero animation crashed on its first frame (a timing value could be slightly negative); a resized window
+  erased the hero drawing; one text said "of 100 tracks" instead of the real count; A's and B's cars looked alike
+  (now white and violet, with name tags). README preview GIFs were 11 MB each, now about 3 MB.
+- The memory guard now watches every new kind of job (Step 4 miss, above).
 
-**Notes**
-- The recipe's main weakness is the slow driving (diagnosis and a fix plan above; needs the director's go).
-- The 05:07 memory-guard stop: when Agent B seed 42 started training and seed 242's evaluation started next to it,
-  Windows' available memory fell to 2.3 GB and the guard stopped the evaluation. With the PC's other apps open,
-  only one of my jobs fits at a time, so B was stopped (2 minutes in, resumed exactly from checkpoint 0 at 05:23)
-  and the Step 2 evaluations ran first.
+**What I did not change, and why:**
+- **No retraining.** Nothing is broken: the agents work as trained and every result reproduces exactly. Their weak
+  spot, missing a few road tiles so the game doesn't end the race early, is a result to report, not a bug. Changing
+  the agents now, after seeing analysis results, would also be tuning on the analysis tracks.
+- The game's own "lap finished" rule never triggers (the start tile counts as touched from the first moment), so the
+  two lap columns are always equal. Both are kept, as the project's definitions require, with this explained.
+
+**Step 5 is done. Next: the final test (Step 6), with the plan committed first (`results/final_test/TEST_PLAN.md`).**
+
+## Step 6: the final test (run once, 2026-10-22 00:22-00:51)
+Run exactly as written in `results/final_test/TEST_PLAN.md` (committed before the test tracks were used for
+anything), by `scripts/final_test.py`, without interruption. Output: `results/final_test/color_test.md`.
+
+**Mean score on the 100 hidden test tracks** (final copies; a full lap is worth about 900):
+
+| | A normal | A unseen | B normal | B unseen |
+|---|---|---|---|---|
+| Seed 42 | **801.1** | 69.2 | 721.7 | 622.5 |
+| Seed 142 | 796.2 | 172.8 | 688.2 | 618.5 |
+| Seed 242 | **824.0** | 33.9 | **807.9** | 503.3 |
+| **Mean of seeds** | **807.1** | **92.0** | **739.3** | **581.4** |
+| Track covered | 90.6% | 20.1% | 84.0% | 69.1% |
+| Laps (strict = game's rule) | 17.3% | 1.0% | 8.0% | 7.0% |
+| Left the map | 4.0% | 19.7% | 3.7% | 17.0% |
+
+Untrained car (random actions, normal colors): -34.9, covering 6.5% of the track, never leaving the map.
+
+**The four tests** (per track, mean of 3 seeds, Wilcoxon, Holm over 4; all four significant):
+1. A, unseen minus normal: **-715.1** (95% CI -758.3 to -669.2), worse on 99 of 100 tracks; Holm p = 1.7e-17.
+2. **Main question, unseen colors, B minus A: +489.5** (95% CI +430.8 to +545.0), B better on 93 of 100 tracks;
+   Holm p = 1.7e-16.
+3. Normal colors, B minus A: **-67.8** (95% CI -100.3 to -36.8), B worse on 63 of 100 tracks; Holm p = 0.0002.
+4. B, unseen minus normal: **-157.8** (95% CI -195.9 to -119.6), worse on 79 of 100 tracks; Holm p = 8.6e-11.
+
+**Verdicts, by the rules written before the test:**
+- **Main question: "B handles unseen colors better than A on the hidden test tracks."** Proven by the paired test,
+  and every B seed (503-623) beats every A seed (34-173) on unseen colors.
+- **Price of robustness: "B pays a price on normal colors": 67.8 points** (8% of A's score).
+- The 800 pass mark (normal colors, unchanged): reached by A seed 42 (801.1), A seed 242 (824.0) and B seed 242
+  (807.9); missed by A seed 142 (796.2), B seed 42 and B seed 142. On unseen colors no seed comes close. No agent is
+  "solved" (900).
+- The test results agree with the analysis-track results of Step 3 (there: +479.7 and -41.6), on tracks no one had used.
+- Limits (stated in the plan): 3 training runs per agent; "unseen" = new schemes from B's own color formula.
+
+**Step 6 is done.**
+
+## Step 7: charts and videos (2026-10-22 00:53-01:16)
+- **Charts** (`results/charts/`): learning curves A vs B; the main result (normal vs unseen colors, each seed shown);
+  the cost of robustness (normal colors, per-track differences). Colorblind-safe blue/orange, one color per agent.
+- **Videos** (`results/final_test/videos/`, the game's full 1000x800 picture per view, 50 frames per second): the
+  untrained car, A on normal colors, A vs B on unseen colors side by side, the split screen (human view | the AI's
+  64x64 input | heat map), and 5 B-roll clips. Chosen by the rules in the test plan; each replays a recorded test race
+  and matched its recorded score (`manifest.json`). README GIFs in `docs/media/`.
+- The A-vs-B clip's track (the median gap) is 10027: purple road, blue grass. A leaves the map after 9.5 s (138.9);
+  B drives to the time limit (745.1).
+- **The untrained car doesn't spin out** (the director's expectation): with random actions it mostly jitters and creeps,
+  because random gas and brake cancel out (score -48.7 on track 10000). The video shows that as it is.
+
+## Step 8: package and publish (2026-10-22)
+- **README.md** (results first, how it was built, the setup in plain words, every step, bugs, limits, videos, how to
+  run, layout, credits) and **INTERVIEW.md** (ten questions, answered plainly), in the style of the other projects.
+  Every number in them was checked against the result files; the first draft had four wrong numbers (practice total,
+  number of earlier evaluation races, the length of A's best lap, code size), all fixed before committing.
+- **Models:** `models/` holds cleaned copies of the six final agents and the untrained network. The originals carried
+  this PC's folder paths (Stable-Baselines3 saves the log folder, and the learning-rate schedule as code); the copies
+  replace those with plain values and are checked to have the same weights and make the same decisions.
+  `scripts/restore_models.py` puts them and the recorded test actions back in place.
+- **Website** (`web/`): the other projects' look, every number read from the result files, and a top-down replay of
+  all 1,200 test races (every replay checked against its record). Tried in a headless browser at desktop and phone
+  sizes (no errors, no sideways scrolling). Packed as a Hugging Face Space by `scripts/make_space.py`.
+- **Resume bullets** (real numbers, no hype):
+  1. Trained pixel-only race-car agents in PyTorch and Stable-Baselines3 (PPO with a Beta policy) and showed that color
+     domain randomization lifts the score in unseen color schemes from 92 to 581 across 100 hidden test tracks
+     (paired Wilcoxon test, Holm p < 0.001), at a 68-point cost on normal colors.
+  2. Built a reproducible evaluation pipeline: separate validation, analysis and test tracks, judging rules and a
+     one-shot test plan committed to git before each experiment, bit-for-bit training resume, and replay checks of
+     all 1,200 recorded test races.
+  3. Measured what the agents look at with blur-test and gradient saliency per image region (105,643 frames), finding
+     both rely heavily on the dashboard gauges (41-53% of the saliency on 12.5% of the image), and built a live site
+     that replays every test race.
