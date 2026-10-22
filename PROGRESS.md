@@ -548,6 +548,11 @@ B seed 142 unseen): right images differ by 0.0000002 typically and 0.00019 at mo
 races in one batch, here the batch is different); deliberately wrong images (the two stacked frames swapped, or 5
 decisions off) differ by about 0.4, and 99% of them by more than 0.001. **The limit is now 0.001.** It still catches
 wrong images, and it is not part of the A-vs-B judgment.
+- Follow-up (00:45): the next agent reached 0.00093, so I measured why. The graphics card's fast math mode (TF32, on
+  by default in PyTorch for these image layers) makes the output depend slightly on how many images go through
+  together (up to 0.0002) and differs from full precision by up to 0.005. **The limit is now 0.01**, still 40 times
+  below a wrong image's typical 0.4. The recorded races are the ground truth (replays use the recorded actions), so
+  no result changes.
 
 ## Step 3 again, with recipe "beta": color test results (finished 2026-10-21 03:53)
 Run as planned: the unchanged Step 3 test plan (four paired tests, Holm), final copies, the 100 analysis tracks,

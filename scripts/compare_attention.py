@@ -187,7 +187,7 @@ def main():
               + "; trained A seed 42: " + ", ".join(
                   f"{REGION_NAMES[r]} {trained_a[f'focus_blur_{r}'].mean():.2f}" for r in REGIONS),
               f"- Largest gap between a rebuilt picture's action and the recorded one: "
-              f"{max(df['max_action_gap'].max() for df in data.values()):.1e} (limit 1e-3).", ""]
+              f"{max(df['max_action_gap'].max() for df in data.values()):.1e} (limit 1e-2).", ""]
     (OUT / "attention_test.md").write_text("\n".join(lines) + "\n")
     (OUT / "attention_test.json").write_text(json.dumps({"tests": results, "verdicts": verdicts}, indent=2))
     focus_chart(data, OUT / "focus_by_region.png")

@@ -29,7 +29,7 @@ from racecar.envs import one_pedal_to_game
 OUT = config.RESULTS_DIR / "attention"
 EXAMPLES = config.RUNS_DIR / "attention_examples"
 METHODS = ("blur", "gradient")
-ACTION_TOLERANCE = 1e-3      # rebuilt images must give the recorded action: GPU rounding reaches 2e-4, wrong images ~0.4
+ACTION_TOLERANCE = 1e-2      # rebuilt images must give the recorded action: TF32 rounding reaches ~5e-3, wrong images ~0.4
 EXAMPLE_TRACKS = 5           # keep the maps of the first 5 tracks for figures
 
 

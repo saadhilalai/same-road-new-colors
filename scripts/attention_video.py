@@ -21,7 +21,7 @@ from racecar.attention import blur_maps, patch_masks
 from racecar.attention_frames import race_moments
 from racecar.envs import one_pedal_to_game
 
-ACTION_TOLERANCE = 1e-3     # as in scripts.attention_maps
+ACTION_TOLERANCE = 1e-2     # as in scripts.attention_maps
 AGENT_TITLES = {"A": "Agent A - trained on normal colors only", "B": "Agent B - trained on random colors"}
 
 
