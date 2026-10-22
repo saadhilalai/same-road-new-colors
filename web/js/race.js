@@ -6,7 +6,7 @@ const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const PLAYFIELD = 2000 / 6;            // the game's map edge (leaving it ends the race, -100)
 const GRASS_DIM = PLAYFIELD / 20;      // the game's grass squares
 const POINTS_PER_SECOND = 12.5;        // one path point every 2 decisions (25 decisions per second)
-const CAR = { A: "#d9d6cf", B: "#c6c0ff" };
+const CAR = { A: "#e8e5de", B: "#8b7dff" };   // A: warm white, B: violet (distinct on any color scheme, dark outline)
 
 export function initRace(site) {
   const canvas = $("[data-race-canvas]"), ctx = canvas.getContext("2d");
@@ -94,6 +94,11 @@ export function initRace(site) {
     ctx.lineTo(cx - sx * L * 0.7 + px * W, cy - sy * L * 0.7 + py * W);
     ctx.lineTo(cx - sx * L * 0.7 - px * W, cy - sy * L * 0.7 - py * W);
     ctx.closePath(); ctx.fill(); ctx.stroke();
+    // a small name tag above the car
+    const r = Math.max(9, L * 0.9), tx = cx, ty = cy - L * 1.6 - r;
+    ctx.fillStyle = "rgba(6,6,9,0.78)"; ctx.beginPath(); ctx.arc(tx, ty, r, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = CAR[agent]; ctx.font = `600 ${Math.round(r * 1.2)}px Geist, system-ui, sans-serif`;
+    ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(agent, tx, ty + 1);
   }
 
   function hud(t) {
@@ -117,7 +122,7 @@ export function initRace(site) {
   let last = 0;
   function frame(now) {
     if (!state.playing) return;
-    state.t += Math.min(0.1, (now - last) / 1000); last = now;
+    state.t += Math.max(0, Math.min(0.1, (now - last) / 1000)); last = now;
     const end = Math.max(...["A", "B"].map((a) => state.data.races[state.colors][a][state.seed].frames / 50)) + 0.5;
     if (state.t >= end) { state.t = end; state.playing = false; }
     draw();

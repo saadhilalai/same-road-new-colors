@@ -68,7 +68,6 @@ function heroRoad() {
   const ctx = c.getContext("2d");
   let w, h, t = 0, scheme = randomScheme(), next = randomScheme(), mix = 0;
   const resize = () => { const d = Math.min(devicePixelRatio || 1, 2); w = c.clientWidth; h = c.clientHeight; c.width = w * d; c.height = h * d; ctx.setTransform(d, 0, 0, d, 0, 0); };
-  resize(); addEventListener("resize", resize);
   const draw = () => {
     ctx.clearRect(0, 0, w, h);
     const pts = [];
@@ -81,13 +80,14 @@ function heroRoad() {
     ctx.strokeStyle = scheme.grass; ctx.globalAlpha = 0.18; ctx.lineWidth = Math.max(60, h * 0.11); stroke(pts);
     ctx.strokeStyle = scheme.road; ctx.globalAlpha = 0.65; ctx.lineWidth = Math.max(24, h * 0.045); stroke(pts);
     ctx.setLineDash([18, 22]); ctx.lineDashOffset = -t * 60; ctx.strokeStyle = "rgba(243,242,238,0.5)"; ctx.lineWidth = 2; ctx.globalAlpha = 1; stroke(pts); ctx.setLineDash([]);
-    const k = (t * 0.07) % 1, p = pts[Math.floor(k * 160)];
+    const k = (((t * 0.07) % 1) + 1) % 1, p = pts[Math.min(160, Math.floor(k * 160))];
     ctx.fillStyle = "#e0402b"; ctx.beginPath(); ctx.arc(p[0], p[1], 7, 0, Math.PI * 2); ctx.fill();
   };
   const stroke = (pts) => { ctx.beginPath(); pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y))); ctx.stroke(); };
+  resize(); addEventListener("resize", () => { resize(); draw(); });   // resizing a canvas clears it
   let last = performance.now();
   const loop = (now) => {
-    t += Math.min(0.05, (now - last) / 1000); last = now;
+    t += Math.max(0, Math.min(0.05, (now - last) / 1000)); last = now;
     mix += 0.004; if (mix >= 1) { scheme = next; next = randomScheme(); mix = 0; }
     draw();
     if (motion) requestAnimationFrame(loop);
@@ -120,7 +120,7 @@ fetch("data/site.json").then((r) => r.json()).then((site) => {
     $("[data-result-title]").innerHTML = 'New colors, no clear winner.<br><span class="soft">The difference wasn\'t proven.</span>';
   }
   const facts = [
-    [`${main.mean_diff > 0 ? "+" : ""}${fmt(main.mean_diff)} points`, `B over A on unseen colors, better on ${main.first_better} of 100 tracks. ${sig(main) ? "Proven by a paired test" : "Not proven"} (Holm p = ${main.p_holm.toPrecision(2)}).`],
+    [`${main.mean_diff > 0 ? "+" : ""}${fmt(main.mean_diff)} points`, `B over A on unseen colors, better on ${main.first_better} of ${main.tracks} tracks. ${sig(main) ? "Proven by a paired test" : "Not proven"} (Holm p = ${main.p_holm.toPrecision(2)}).`],
     [`${fmt(price.mean_diff)} points`, `B vs A on normal colors: the price of practising in random colors. ${sig(price) ? "Significant" : "Not significant"}.`],
     [`${fmt(aDrop.mean_diff)} points`, `What new colors cost A, against ${fmt(bDrop.mean_diff)} for B.`],
   ];

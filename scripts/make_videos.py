@@ -82,17 +82,18 @@ def split_screen(path, agent, seed, colors, track, masks):
             w.append_data(video.even(video.side_by_side(*panels)))
 
 
-def gif(video_path, path, width=720, fps=20, seconds=8):
+def gif(video_path, path, width=720, fps=12, seconds=8):
     """A small looping preview for the README (reads only the frames it needs)."""
     import imageio.v2 as imageio
-    step, frames = video.FPS // fps, []
+    step, frames = round(video.FPS / fps), []
     with imageio.get_reader(video_path) as reader:
         for i, f in enumerate(reader):
             if i >= seconds * video.FPS:
                 break
             if i % step == 0:
                 frames.append(Image.fromarray(f).resize((width, int(f.shape[0] * width / f.shape[1])), Image.LANCZOS))
-    frames[0].save(path, save_all=True, append_images=frames[1:], duration=int(1000 / fps), loop=0, optimize=True)
+    frames = [f.convert("P", palette=Image.ADAPTIVE, colors=128) for f in frames]
+    frames[0].save(path, save_all=True, append_images=frames[1:], duration=int(1000 * step / video.FPS), loop=0, optimize=True)
 
 
 def main():
@@ -160,10 +161,24 @@ def main():
     (OUT / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
 
     # GIF previews for the README
-    gif(OUT / "3_a_vs_b_unseen_colors.mp4", MEDIA / "a_vs_b_unseen_colors.gif", width=900, seconds=10)
-    gif(OUT / "4_split_screen_what_the_ai_sees.mp4", MEDIA / "split_screen.gif", width=960, seconds=8)
-    gif(OUT / "1_untrained_car.mp4", MEDIA / "untrained_car.gif", width=480, seconds=6)
+    gif(OUT / "3_a_vs_b_unseen_colors.mp4", MEDIA / "a_vs_b_unseen_colors.gif", width=720, fps=12, seconds=8)
+    gif(OUT / "4_split_screen_what_the_ai_sees.mp4", MEDIA / "split_screen.gif", width=840, fps=12, seconds=6)
+    gif(OUT / "1_untrained_car.mp4", MEDIA / "untrained_car.gif", width=360, fps=12, seconds=6)
+    site_media()
     print("videos written:", *sorted(p.name for p in OUT.glob("*.mp4")), sep="\n  ")
+
+
+def site_media():
+    """The website's copies of two clips, and poster pictures (a frame 3 seconds in)."""
+    import shutil
+    import imageio.v2 as imageio
+    web = config.PROJECT_ROOT / "web" / "media"
+    web.mkdir(parents=True, exist_ok=True)
+    for src, dst, poster in (("3_a_vs_b_unseen_colors.mp4", "a_vs_b_unseen_colors.mp4", "poster.jpg"),
+                             ("4_split_screen_what_the_ai_sees.mp4", "split_screen.mp4", "split_poster.jpg")):
+        shutil.copy(OUT / src, web / dst)
+        with imageio.get_reader(OUT / src) as r:
+            Image.fromarray(r.get_data(3 * video.FPS)).save(web / poster, quality=88)
 
 
 if __name__ == "__main__":
