@@ -14,7 +14,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 from racecar import plot_style
 
-FPS = 25            # one picture per AI decision = real time (a decision lasts 2 frames at 50 frames per second)
+FPS = 50            # every game frame, real time (the game runs at 50 frames per second)
 CRF = 16            # H.264 quality (lower = better; 16-18 is visually lossless)
 HEADER = 64         # caption bar height in pixels
 FONT_DIR = Path(matplotlib.get_data_path()) / "fonts" / "ttf"

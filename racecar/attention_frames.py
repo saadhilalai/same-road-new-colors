@@ -84,6 +84,32 @@ def race_moments(track_seed, color_seed, actions, full_frames=False):
     yield "result", score, frames, info.get("tiles_visited")
 
 
+def race_pictures(track_seed, color_seed, actions):
+    """
+    Full-size pictures (1000x800, as the game draws them) of every frame of a replayed race, 50 per second:
+    yields (decision number, picture); at the end, ("result", score, frames, tiles visited).
+    """
+    env = make_env(ai_view=False, render_mode="rgb_array")
+    color = None if int(color_seed) == -1 else int(color_seed)
+    env.reset(seed=int(track_seed), options={"color_seed": color})
+    car = env.unwrapped
+    score, frames, info, done = 0.0, 0, {}, False
+    for d, action in enumerate(np.asarray(actions, dtype=np.float32)):
+        for _ in range(config.FRAME_SKIP):
+            env.render()
+            yield d, np.transpose(_surface_pixels(car.surf), (1, 0, 2))
+            _, reward, term, trunc, info = env.step(action)
+            score += reward
+            frames += 1
+            if term or trunc:
+                done = True
+                break
+        if done:
+            break
+    env.close()
+    yield "result", score, frames, info.get("tiles_visited")
+
+
 def replay_for_attention(task):
     """
     task: dict(track_seed, color_seed (-1 = normal), actions (n, 3) game actions).

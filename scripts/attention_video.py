@@ -18,7 +18,7 @@ from stable_baselines3 import PPO
 import config
 from racecar import plot_style, video
 from racecar.attention import blur_maps, patch_masks
-from racecar.attention_frames import race_moments
+from racecar.attention_frames import race_moments, race_pictures
 from racecar.envs import one_pedal_to_game
 
 ACTION_TOLERANCE = 1e-2     # as in scripts.attention_maps
@@ -64,15 +64,15 @@ def check(row, score, frames, tiles):
 
 
 def panel_frames(row, actions, maps=None):
-    """Full-size pictures (1000x800) of a replayed race, with the heat map on top if given; holds the last
-    picture with "race over" once the race ended. Yields forever (the caller decides when to stop)."""
+    """Full-size pictures (1000x800, 50 per second) of a replayed race, with the heat map of the current decision on
+    top if given; holds the last picture with "race over" once the race ended. Yields forever (the caller stops)."""
     top = np.percentile(maps, 99.5) + 1e-12 if maps is not None else None
     last = None
-    for m in race_moments(row.track_seed, row.color_seed, actions, full_frames=True):
+    for m in race_pictures(row.track_seed, row.color_seed, actions):
         if m[0] == "result":
             check(row, *m[1:])
             break
-        d, _, _, picture = m
+        d, picture = m
         last = video.heat_overlay(picture, maps[d], top) if maps is not None else picture
         yield last
     ended = "left the map" if row.off_track else ("lap complete" if row.lap_completed else "time up")
@@ -87,7 +87,7 @@ def pair_video(path, left, right, subtitle, heat=True, masks=None):
     for side in (left, right):
         maps = race_heat_maps(side["model"], side["row"], side["actions"], masks) if heat else None
         streams.append(panel_frames(side["row"], side["actions"], maps))
-        n = max(n, int(np.ceil(side["row"].frames / config.FRAME_SKIP)))
+        n = max(n, int(side["row"].frames))
     heads = [video.caption(1000, AGENT_TITLES[s["agent"]], subtitle, plot_style.AGENT_COLORS[s["agent"]])
              for s in (left, right)]
     with video.writer(path) as w:
