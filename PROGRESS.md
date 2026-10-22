@@ -3,7 +3,7 @@
 Race-car AI that learns to drive from pixels only (Gymnasium CarRacing-v3, PPO),
 testing whether domain randomization (random colors in training) makes it robust to unseen colors.
 
-## Summary (updated 2026-10-20 15:15)
+## Summary (updated 2026-10-21 23:00)
 
 **Now (2026-10-19): retraining A and B with the new recipe "beta"** (PPO with a Beta policy and one pedal, from
 published evidence; director's OK). Code and checks are done (24/24 tests; exact resume after a hard kill).
@@ -17,7 +17,13 @@ gate decisions: `results/beta_plan/gates.md`.
 - **Stage 3 done: the two-seed rule passed, so the new recipe is adopted.** Two-seed means on validation: A 792.8
   (old 475.7), B 723.8 (old -12.2; better on 100 of 100 tracks, p = 3.9e-18). A seed 142 scored 806.7, the
   project's first agent above 800. Most races still end at the time limit just before the lap is done.
-- **Now:** stage 4 (seeds 242, then the unseen-color tests). Expected end around 03:00-05:00 on 2026-10-21.
+- **Plan finished 2026-10-21 03:53. The project question has an answer: yes, for these agents.** On unseen colors B
+  scores 530.6 and A 51.0 (mean of 3 seeds, analysis tracks). B is better on 96 of 100 tracks (Holm p = 4.2e-17), and
+  each B seed beats each A seed. Price: B is 41.6 lower on normal colors (757.2 vs 798.8). B still loses 227 points on
+  unseen colors. "Unseen" = new schemes from B's own random color formula. Details: "Step 3 again, with recipe beta".
+- Most races end at the time limit because the game only ends a race early once every tile is touched (verified),
+  not because the cars are slow. Two agents reach 800: A seed 242 (819.0) and B seed 242 (835.5).
+- **Waiting:** B's six driving checks (about 20 minutes), until Windows has 5.5 GB available.
 - **Miss:** my gate script crashed after making that decision and stopped the plan for a few minutes. Fixed, tested,
   restarted; no training lost (see "Progress" in the plan section).
 
@@ -474,6 +480,63 @@ races are flagged as "possible shortcuts": the nearest point of the road jumps w
 These races score at most 181, so no points are gained; it is a missed turn, not a trick. No B seed ever used
 full gas.
 
+## Step 3 again, with recipe "beta": color test results (finished 2026-10-21 03:53)
+Run as planned: the unchanged Step 3 test plan (four paired tests, Holm), final copies, the 100 analysis tracks,
+the same color seeds as before. Output: `results/step3_beta/color_test.md`, chart `results/step3_beta/normal_vs_unseen.png`.
+
+| Final copies, analysis tracks | A normal | A unseen | B normal | B unseen |
+|---|---|---|---|---|
+| Seed 42 | 783.9 | 45.6 | 720.5 | 544.2 |
+| Seed 142 | 793.6 | 113.2 | 715.7 | 569.5 |
+| Seed 242 | **819.0** | -5.9 | **835.5** | 478.1 |
+| **Mean of seeds** | **798.8** | **51.0** | **757.2** | **530.6** |
+| Track covered (mean) | 89.9% | 16.1% | 85.9% | 64.4% |
+| Laps (strict) | 13.7% | 0.3% | 13.7% | 4.7% |
+| Left the map | 4.7% | 22.3% | 4.7% | 22.0% |
+
+**The four tests** (per track, mean of 3 seeds, Wilcoxon, Holm over 4; all four significant):
+1. A, unseen minus normal: **-747.9** (95% CI -787.5 to -705.4), worse on 100 of 100 tracks; Holm p = 1.6e-17.
+2. **Main question, unseen colors, B minus A: +479.7** (95% CI +425.3 to +535.0), B better on 96 of 100 tracks;
+   Holm p = 4.2e-17.
+3. Normal colors, B minus A: **-41.6** (95% CI -69.7 to -12.6), B worse on 66 of 100 tracks; Holm p = 0.004.
+4. B, unseen minus normal: **-226.6** (95% CI -274.3 to -180.5), worse on 82 of 100 tracks; Holm p = 2.2e-12.
+
+**What this does and does not show (plain reading):**
+- **Proven (significant paired test, plan written before any result): on unseen colors, B scores far more than A**
+  (531 vs 51). This time B can drive on normal colors (757), so the earlier objection ("B just fails more gently") is gone.
+- **The seeds agree.** Each of B's three seeds (478 to 570) beats each of A's three (-6 to 113) on unseen colors.
+  The limit stated in advance still holds: the tests compare these six drivers across tracks; with 3 training runs
+  per agent they don't measure how much a fresh training run would vary.
+- **B is more robust, not immune.** It loses 227 points on unseen colors (test 4) and leaves the map in 22% of those
+  races, as often as A. But it covers 64% of the track where A covers 16%.
+- **The price of robustness is small but real:** B is 42 points below A on normal colors (test 3). It comes from
+  B seeds 42 and 142; B seed 242 (835.5) is the best normal-color driver of all six.
+- **What "unseen colors" means here:** new color schemes from the same random color formula B trained on (color
+  seeds B never saw). So this shows that B handles new schemes from its training range. It does not show robustness
+  to other kinds of change (lighting, textures, a different color formula). That would need a new test.
+- **800 pass mark** (unchanged; analysis tracks, normal colors): reached by A seed 242 (819.0) and B seed 242 (835.5),
+  not by the other four. On unseen colors no agent reaches it.
+
+**Why most races hit the time limit (speed check, validation tracks, all replays 100/100):**
+- The new agents are fast enough. Their average speed is 53-67, against 51.7 needed to finish a lap in time, and
+  61-94 of 100 races per agent are fast enough on average. Yet 71-100 races per agent hit the 1,000-step limit.
+- **Reason (verified): the game ends a race early only when every road tile has been touched.** Its "95% of the
+  tiles is enough" rule is checked only the first time the car touches the start tile, and the start tile is
+  already touched when the race begins (checked: 20 of 20 races). So a car that skips even one tile drives on until
+  the limit and loses 0.1 points per step. Example: A seed 42, track 5000, covered 96.5%, average speed 66.9 vs
+  50.8 needed, score 865.4 (965 for the tiles minus 100 for 1,000 steps).
+- So the new agents mostly don't miss 800 because they drive slowly. They miss a few tiles, likely at corners
+  (untested), and then pay for the extra time. This is how the game works, for every agent alike; nothing was changed.
+- **Correction to the earlier "slow driving" diagnosis (2026-10-18):** it blamed the old agent's time-outs on speed
+  alone. Likely reason (untested): part of those time-outs had this cause too.
+
+**Driving checks** (`scripts.inspect_driving`, part of the original Step 3 plan; `results/driving/<run>_analysis_<colors>/`):
+- A, all three seeds, both color sets: every replay reproduces its recorded result (100/100 each).
+- "Possible shortcut" flags (the nearest road point jumps while the car crosses grass): 5-12 races per seed on
+  normal colors. Flagged races score less than the others (541-641 vs 801-857), so no points were gained. In this
+  game points come only from touching new tiles, so a cut across the grass can only lose points.
+- **B: the six checks are still waiting for memory** (see "Progress" in the plan section).
+
 ## Plan: retraining with recipe "beta" (director's OK 2026-10-19; rule written before training)
 
 **Director's decisions (2026-10-19)**
@@ -608,6 +671,13 @@ normal colors, final copies (`results/beta_plan/gates.md`):
   Likely reason (untested): they still drive too slowly to finish in time. The speed check in stage 4 will show it.
 - Stage 4 started at 15:06: seeds 242, then the evaluations on the analysis tracks (normal and unseen colors), the
   Step 3 color tests, and the speed checks. Expected end: around 03:00-05:00 on 2026-10-21.
+
+**Stage 4 and the plan finished (2026-10-21 03:53).** Seeds 242 trained, all evaluations, the Step 3 color tests and
+the speed checks done; done-file written. Results: "Step 3 again, with recipe beta" above.
+- Then I queued the driving checks of the original Step 3 plan (12 runs, about 3 minutes each). A's six ran by 04:17.
+  B's six have waited since then: Windows had 2.9-4.6 GB available from about 05:00 on, never the 5.5 GB a job needs to start.
+- **Miss:** I had said I'd report when stage 4 finished. I held the report back to add the driving checks first, so
+  the results sat unreported for about 19 hours. I should have reported at 03:53 and run the checks after.
 
 ## Research: what has reached ~900 on CarRacing (2026-10-19; nothing trained)
 The director chose option (a), to fix the training together with the slow driving and retrain once, and asked me to
