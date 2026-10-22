@@ -102,7 +102,7 @@ def main_result(path, per_track, per_seed, tests):
                         ha="left" if x[c] else "right", va="center", fontsize=11, color=plot_style.INK_SECONDARY)
     main = tests[1]
     ax.set_title(f"Unseen colors: B beats A by {main['mean_diff']:+.0f} points "
-                 f"(95% CI {main['ci95'][0]:+.0f} to {main['ci95'][1]:+.0f}, Holm p = {main['p_holm']:.1g})",
+                 f"(95% CI {main['ci95'][0]:+.0f} to {main['ci95'][1]:+.0f}, Holm p = {main['p_holm']:.2g})",
                  loc="left", fontsize=11.5)
     ax.axhline(config.SOLVED_SCORE, color=plot_style.MUTED, ls=(0, (4, 3)), lw=1.1)
     ax.text(0.5, config.SOLVED_SCORE + 12, "solved (900)", fontsize=9, color=plot_style.INK_SECONDARY, ha="center")
@@ -127,18 +127,21 @@ def cost_of_robustness(path, per_track, per_seed, tests):
         ax.bar(k, m, 0.6, color=color, edgecolor=plot_style.SURFACE, lw=2)
         ax.scatter([k] * 3, per_seed[agent, "normal"].values, color=plot_style.INK, s=22, zorder=3,
                    label="single seeds" if k == 0 else None)
-        ax.text(k, m + 15, f"{m:.0f}", ha="center", fontsize=11, color=plot_style.INK_SECONDARY)
+        ax.text(k, max(m, per_seed[agent, "normal"].max()) + 22, f"mean {m:.0f}", ha="center", fontsize=11,
+                color=plot_style.INK_SECONDARY)
     ax.set_xticks([0, 1], ["Agent A", "Agent B"])
     ax.set_ylabel("mean score, normal colors")
     ax.set_title("Normal colors, 100 hidden test tracks", loc="left", fontsize=12)
     ax.grid(axis="x", visible=False)
-    ax.legend(loc="lower center")
+    ax.set_ylim(0, 960)
+    ax.legend(loc="upper right")
     ax = axes[1]
     colors = [plot_style.AGENT_COLORS["B"] if d > 0 else plot_style.AGENT_COLORS["A"] for d in diff]
     ax.bar(np.arange(len(diff)), diff.values, 1.0, color=colors, edgecolor=plot_style.SURFACE, lw=0.4)
     ax.axhline(0, color=plot_style.BASELINE, lw=1)
     ax.axhline(diff.mean(), color=plot_style.INK, lw=1.4, ls=(0, (4, 3)))
-    ax.text(2, diff.mean(), f" mean {diff.mean():+.1f}", va="bottom", fontsize=10, color=plot_style.INK)
+    ax.text(len(diff) - 1, diff.mean() - 12, f"mean {diff.mean():+.1f}", ha="right", va="top", fontsize=10,
+            color=plot_style.INK)
     ax.set_xticks([])
     ax.set_xlabel("tracks, sorted (blue: A better, orange: B better)")
     ax.set_ylabel("B minus A (mean of 3 seeds)")

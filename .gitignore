@@ -19,3 +19,8 @@ results/driving/*/videos/
 
 # Heat-map and final videos (large; regenerable from recorded actions; published with the website)
 results/attention/videos/
+
+# The website's copies of two final-test videos (the packer copies them from results/final_test/videos)
+web/media/*.mp4
+# Built Hugging Face Space
+build/

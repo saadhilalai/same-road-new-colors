@@ -30,7 +30,7 @@ gate decisions: `results/beta_plan/gates.md`.
 - **Step 5 done (review):** nothing broken; 24/24 code checks pass; the one-shot test script, videos, charts and
   website were all tried for real on scratch tracks first. No retraining.
 - **Step 6 done: the final test, run once on the 100 hidden tracks.** Unseen colors: **B 581.4 vs A 92.0** (+489.5,
-  better on 93 of 100 tracks, Holm p = 1.8e-16; every B seed beats every A seed). Normal colors: A 807.1, B 739.3,
+  better on 93 of 100 tracks, Holm p = 1.7e-16; every B seed beats every A seed). Normal colors: A 807.1, B 739.3,
   so B pays a price of 67.8 points (significant). **The project question is answered: yes, for these agents, training
   on random colors made the driver far more robust to colors it had never seen, at a small cost on normal colors.**
 - **Miss:** my gate script crashed after making that decision and stopped the plan for a few minutes. Fixed, tested,
@@ -595,7 +595,7 @@ Untrained car (random actions, normal colors): -34.9, covering 6.5% of the track
 **The four tests** (per track, mean of 3 seeds, Wilcoxon, Holm over 4; all four significant):
 1. A, unseen minus normal: **-715.1** (95% CI -758.3 to -669.2), worse on 99 of 100 tracks; Holm p = 1.7e-17.
 2. **Main question, unseen colors, B minus A: +489.5** (95% CI +430.8 to +545.0), B better on 93 of 100 tracks;
-   Holm p = 1.8e-16.
+   Holm p = 1.7e-16.
 3. Normal colors, B minus A: **-67.8** (95% CI -100.3 to -36.8), B worse on 63 of 100 tracks; Holm p = 0.0002.
 4. B, unseen minus normal: **-157.8** (95% CI -195.9 to -119.6), worse on 79 of 100 tracks; Holm p = 8.6e-11.
 

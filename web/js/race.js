@@ -14,7 +14,7 @@ export function initRace(site) {
   const state = { track: null, data: null, colors: "unseen", seed: "42", t: 0, playing: false, cache: new Map() };
   site.tracks.forEach((t, i) => {
     const o = document.createElement("option");
-    o.value = t; o.textContent = `Hidden test track ${i + 1} (seed ${t})`;
+    o.value = t; o.textContent = `Test track ${i + 1} of ${site.tracks.length}`;
     select.appendChild(o);
   });
 
@@ -88,12 +88,15 @@ export function initRace(site) {
     // the car: forward is the body's +y axis
     const L = Math.max(9, v.s * 5), W = L * 0.55, fx = -Math.sin(ang), fy = Math.cos(ang);
     const cx = v.X(x), cy = v.Y(y), sx = fx, sy = -fy, px = -sy, py = sx;
-    ctx.fillStyle = CAR[agent]; ctx.strokeStyle = "#0b0b0c"; ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(cx + sx * L, cy + sy * L);
-    ctx.lineTo(cx - sx * L * 0.7 + px * W, cy - sy * L * 0.7 + py * W);
-    ctx.lineTo(cx - sx * L * 0.7 - px * W, cy - sy * L * 0.7 - py * W);
-    ctx.closePath(); ctx.fill(); ctx.stroke();
+    const body = () => {
+      ctx.beginPath();
+      ctx.moveTo(cx + sx * L, cy + sy * L);
+      ctx.lineTo(cx - sx * L * 0.7 + px * W, cy - sy * L * 0.7 + py * W);
+      ctx.lineTo(cx - sx * L * 0.7 - px * W, cy - sy * L * 0.7 - py * W);
+      ctx.closePath();
+    };
+    body(); ctx.strokeStyle = "rgba(255,255,255,0.95)"; ctx.lineWidth = 6; ctx.stroke();   // halo: visible on any colors
+    body(); ctx.fillStyle = CAR[agent]; ctx.fill(); ctx.strokeStyle = "#0b0b0c"; ctx.lineWidth = 2; ctx.stroke();
     // a small name tag above the car
     const r = Math.max(9, L * 0.9), tx = cx, ty = cy - L * 1.6 - r;
     ctx.fillStyle = "rgba(6,6,9,0.78)"; ctx.beginPath(); ctx.arc(tx, ty, r, 0, Math.PI * 2); ctx.fill();

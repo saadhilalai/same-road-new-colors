@@ -1,0 +1,125 @@
+{
+  "1_untrained_car.mp4": {
+    "track": 10000,
+    "colors": "normal",
+    "replays_match_recorded_results": true,
+    "races": [
+      {
+        "agent": "untrained",
+        "seed": 42,
+        "score": -48.72,
+        "frames": 1000
+      }
+    ]
+  },
+  "2_agent_a_normal_colors.mp4": {
+    "track": 10097,
+    "colors": "normal",
+    "replays_match_recorded_results": true,
+    "races": [
+      {
+        "agent": "A",
+        "seed": 242,
+        "score": 939.9,
+        "frames": 601
+      }
+    ]
+  },
+  "3_a_vs_b_unseen_colors.mp4": {
+    "track": 10027,
+    "colors": "unseen",
+    "replays_match_recorded_results": true,
+    "races": [
+      {
+        "agent": "A",
+        "seed": 42,
+        "score": 138.9,
+        "frames": 474
+      },
+      {
+        "agent": "B",
+        "seed": 42,
+        "score": 745.12,
+        "frames": 1000
+      }
+    ]
+  },
+  "4_split_screen_what_the_ai_sees.mp4": {
+    "track": 10027,
+    "colors": "unseen",
+    "replays_match_recorded_results": true,
+    "races": [
+      {
+        "agent": "B",
+        "seed": 42,
+        "score": 745.12,
+        "frames": 1000
+      }
+    ]
+  },
+  "5_broll_1_B_seed142_unseen_track10052.mp4": {
+    "track": 10052,
+    "colors": "unseen",
+    "replays_match_recorded_results": true,
+    "races": [
+      {
+        "agent": "B",
+        "seed": 142,
+        "score": 930.6,
+        "frames": 694
+      }
+    ]
+  },
+  "5_broll_2_B_seed42_unseen_track10049.mp4": {
+    "track": 10049,
+    "colors": "unseen",
+    "replays_match_recorded_results": true,
+    "races": [
+      {
+        "agent": "B",
+        "seed": 42,
+        "score": 930.4,
+        "frames": 696
+      }
+    ]
+  },
+  "5_broll_3_B_seed42_unseen_track10084.mp4": {
+    "track": 10084,
+    "colors": "unseen",
+    "replays_match_recorded_results": true,
+    "races": [
+      {
+        "agent": "B",
+        "seed": 42,
+        "score": 928.6,
+        "frames": 714
+      }
+    ]
+  },
+  "5_broll_4_A_seed142_normal_track10025.mp4": {
+    "track": 10025,
+    "colors": "normal",
+    "replays_match_recorded_results": true,
+    "races": [
+      {
+        "agent": "A",
+        "seed": 142,
+        "score": 947.5,
+        "frames": 525
+      }
+    ]
+  },
+  "5_broll_5_B_seed242_normal_track10017.mp4": {
+    "track": 10017,
+    "colors": "normal",
+    "replays_match_recorded_results": true,
+    "races": [
+      {
+        "agent": "B",
+        "seed": 242,
+        "score": 939.2,
+        "frames": 608
+      }
+    ]
+  }
+}

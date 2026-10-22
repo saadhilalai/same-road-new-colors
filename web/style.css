@@ -185,10 +185,11 @@ html.nerd-mode .nerd { display: block; animation: nerd-in 0.7s var(--ease) both;
 
 /* ---- 07 Race ---- */
 .s-race { background: var(--dark); padding: 18vh var(--gutter) 16vh; }
-.race-inner { max-width: 1400px; margin: 0 auto; display: grid; gap: 26px; }
+.race-inner { max-width: 1400px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1fr); gap: 26px; }
 .race-ui { display: grid; gap: 16px; margin-top: 4vh; }
 .race-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
-.ctl { display: inline-flex; align-items: center; gap: 10px; }
+.ctl { display: inline-flex; align-items: center; gap: 10px; max-width: 100%; min-width: 0; }
+.ctl select { min-width: 0; max-width: 100%; }
 .ctl select { appearance: none; background: rgba(243, 242, 238, 0.08); border: 1px solid var(--line-2); border-radius: 999px; padding: 9px 34px 9px 16px;
   background-image: linear-gradient(45deg, transparent 50%, var(--ink-2) 50%), linear-gradient(135deg, var(--ink-2) 50%, transparent 50%);
   background-position: calc(100% - 18px) 55%, calc(100% - 13px) 55%; background-size: 5px 5px; background-repeat: no-repeat; }

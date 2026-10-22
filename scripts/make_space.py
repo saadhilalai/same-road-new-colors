@@ -14,6 +14,7 @@ import config
 
 OUT = config.PROJECT_ROOT / "build" / "hf_space"
 WEB = config.PROJECT_ROOT / "web"
+VIDEOS = {"3_a_vs_b_unseen_colors.mp4": "a_vs_b_unseen_colors.mp4", "4_split_screen_what_the_ai_sees.mp4": "split_screen.mp4"}
 
 SPACE_CARD = """\
 ---
@@ -30,8 +31,9 @@ short_description: A pixel-only race-car AI vs new colors, 1,200 test races
 
 Two race-car AIs taught themselves to drive from camera pixels only (Gymnasium CarRacing), with exactly the same
 practice. One only ever saw the normal colors; the other saw a new random color scheme in every training race.
-On 100 hidden test tracks in colors neither had seen, see the site for the result. Every race on the page is a
-replay of a recorded test run, checked against the recorded result.
+On 100 hidden test tracks in colors neither had seen, the one that practised with random colors scored 581 against
+92 (tested once; paired test, p < 0.001), at a small price on normal colors (739 vs 807). Every race on the page is
+a replay of a recorded test run, checked against the recorded result.
 
 Designed & built by Saad Hilal · S4D. Code, test plan and lab notebook:
 https://github.com/saadhilalai/same-road-new-colors
@@ -44,7 +46,8 @@ Motion: GSAP 3.14.2 with ScrollTrigger (GreenSock standard "no charge" license).
 
 def check_inputs():
     tracks = sorted((WEB / "data" / "tracks").glob("*.json"))
-    missing = [p for p in (WEB / "index.html", WEB / "data" / "site.json") if not p.exists()]
+    missing = [p for p in (WEB / "index.html", WEB / "data" / "site.json", WEB / "media" / "poster.jpg",
+                           *(config.RESULTS_DIR / "final_test" / "videos" / v for v in VIDEOS)) if not p.exists()]
     if len(tracks) != len(config.TEST_TRACKS) or missing:
         raise SystemExit(f"Missing site data ({len(tracks)}/{len(config.TEST_TRACKS)} tracks, missing {missing}). "
                          "Run: python -m scripts.export_site_data")
@@ -55,6 +58,8 @@ def build():
     if OUT.exists():
         shutil.rmtree(OUT)
     shutil.copytree(WEB, OUT, ignore=shutil.ignore_patterns(".DS_Store", "*.map"))
+    for src, dst in VIDEOS.items():                       # the site's two clips, from the final-test videos
+        shutil.copy(config.RESULTS_DIR / "final_test" / "videos" / src, OUT / "media" / dst)
     (OUT / "README.md").write_text(SPACE_CARD)
     files = [p for p in OUT.rglob("*") if p.is_file()]
     print(f"Built {OUT.relative_to(config.PROJECT_ROOT)}/ ({len(files)} files, "
