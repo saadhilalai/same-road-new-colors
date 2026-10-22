@@ -123,7 +123,7 @@ HEAT = LinearSegmentedColormap.from_list("heat", ["#000000", "#7a1e00", "#eb6834
 def overlay(view, heat, top):
     h = np.clip(heat / top, 0, 1)
     rgba = HEAT(h)[..., :3]
-    a = (0.25 + 0.6 * h)[..., None]
+    a = (0.85 * h ** 0.9)[..., None]          # as in the videos: no heat = picture unchanged
     return (1 - a) * view / 255 + a * rgba
 
 

@@ -1,0 +1,166 @@
+{
+  "tests": [
+    {
+      "test": "1. Normal colors: road-edge focus, B minus A",
+      "method": "blur",
+      "tracks": 100,
+      "first_mean": 0.817,
+      "second_mean": 1.132,
+      "mean_diff": -0.316,
+      "ci95": [
+        -0.329,
+        -0.302
+      ],
+      "first_higher": 0,
+      "second_higher": 100,
+      "p": 3.896559845095909e-18,
+      "p_holm": 1.5586239380383637e-17,
+      "significant": true,
+      "direction": "opposite"
+    },
+    {
+      "test": "2. Unseen colors: road-edge focus, B minus A",
+      "method": "blur",
+      "tracks": 100,
+      "first_mean": 0.953,
+      "second_mean": 1.157,
+      "mean_diff": -0.205,
+      "ci95": [
+        -0.278,
+        -0.131
+      ],
+      "first_higher": 25,
+      "second_higher": 75,
+      "p": 2.4125792097928153e-07,
+      "p_holm": 2.4125792097928153e-07,
+      "significant": true,
+      "direction": "opposite"
+    },
+    {
+      "test": "3. Normal colors: off-road focus, A minus B",
+      "method": "blur",
+      "tracks": 100,
+      "first_mean": 0.539,
+      "second_mean": 0.426,
+      "mean_diff": 0.113,
+      "ci95": [
+        0.107,
+        0.12
+      ],
+      "first_higher": 99,
+      "second_higher": 1,
+      "p": 4.0161556854627e-18,
+      "p_holm": 1.5586239380383637e-17,
+      "significant": true,
+      "direction": "as guessed"
+    },
+    {
+      "test": "4. Unseen colors: off-road focus, A minus B",
+      "method": "blur",
+      "tracks": 100,
+      "first_mean": 0.482,
+      "second_mean": 0.429,
+      "mean_diff": 0.053,
+      "ci95": [
+        0.037,
+        0.069
+      ],
+      "first_higher": 78,
+      "second_higher": 22,
+      "p": 8.114100129319028e-09,
+      "p_holm": 1.6228200258638055e-08,
+      "significant": true,
+      "direction": "as guessed"
+    },
+    {
+      "test": "1. Normal colors: road-edge focus, B minus A",
+      "method": "gradient",
+      "tracks": 100,
+      "first_mean": 1.286,
+      "second_mean": 1.117,
+      "mean_diff": 0.168,
+      "ci95": [
+        0.162,
+        0.175
+      ],
+      "first_higher": 100,
+      "second_higher": 0,
+      "p": 3.896559845095909e-18,
+      "p_holm": 1.5586239380383637e-17,
+      "significant": true,
+      "direction": "as guessed"
+    },
+    {
+      "test": "2. Unseen colors: road-edge focus, B minus A",
+      "method": "gradient",
+      "tracks": 100,
+      "first_mean": 1.283,
+      "second_mean": 1.123,
+      "mean_diff": 0.161,
+      "ci95": [
+        0.129,
+        0.194
+      ],
+      "first_higher": 80,
+      "second_higher": 20,
+      "p": 6.027785259387459e-13,
+      "p_holm": 6.027785259387459e-13,
+      "significant": true,
+      "direction": "as guessed"
+    },
+    {
+      "test": "3. Normal colors: off-road focus, A minus B",
+      "method": "gradient",
+      "tracks": 100,
+      "first_mean": 1.016,
+      "second_mean": 0.777,
+      "mean_diff": 0.239,
+      "ci95": [
+        0.234,
+        0.243
+      ],
+      "first_higher": 100,
+      "second_higher": 0,
+      "p": 3.896559845095909e-18,
+      "p_holm": 1.5586239380383637e-17,
+      "significant": true,
+      "direction": "as guessed"
+    },
+    {
+      "test": "4. Unseen colors: off-road focus, A minus B",
+      "method": "gradient",
+      "tracks": 100,
+      "first_mean": 0.992,
+      "second_mean": 0.771,
+      "mean_diff": 0.22,
+      "ci95": [
+        0.205,
+        0.236
+      ],
+      "first_higher": 99,
+      "second_higher": 1,
+      "p": 4.139373908714419e-18,
+      "p_holm": 1.5586239380383637e-17,
+      "significant": true,
+      "direction": "as guessed"
+    }
+  ],
+  "verdicts": [
+    {
+      "test": "1. Normal colors: road-edge focus, B minus A",
+      "verdict": "not shown"
+    },
+    {
+      "test": "2. Unseen colors: road-edge focus, B minus A",
+      "verdict": "not shown"
+    },
+    {
+      "test": "3. Normal colors: off-road focus, A minus B",
+      "verdict": "supported"
+    },
+    {
+      "test": "4. Unseen colors: off-road focus, A minus B",
+      "verdict": "supported"
+    }
+  ]
+}

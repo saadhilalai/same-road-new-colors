@@ -3,7 +3,7 @@
 Race-car AI that learns to drive from pixels only (Gymnasium CarRacing-v3, PPO),
 testing whether domain randomization (random colors in training) makes it robust to unseen colors.
 
-## Summary (updated 2026-10-21 23:30)
+## Summary (updated 2026-10-22 00:10)
 
 **Now (2026-10-19): retraining A and B with the new recipe "beta"** (PPO with a Beta policy and one pedal, from
 published evidence; director's OK). Code and checks are done (24/24 tests; exact resume after a hard kill).
@@ -24,6 +24,9 @@ gate decisions: `results/beta_plan/gates.md`.
 - Most races end at the time limit because the game only ends a race early once every tile is touched (verified),
   not because the cars are slow. Two agents reach 800: A seed 242 (819.0) and B seed 242 (835.5).
 - **Step 3 is done** (B's driving checks ran once memory was free). **Steps 4-8 are running in one go** (see below).
+- **Step 4 done (what the AI sees):** A looks at the background more than B (both methods agree); "B looks at the road
+  edges more" is not shown (the methods disagree). Surprise: both lean hard on the dashboard gauges (41-53% of the blur
+  heat on 12.5% of the picture), B more than A.
 - **Miss:** my gate script crashed after making that decision and stopped the plan for a few minutes. Fixed, tested,
   restarted; no training lost (see "Progress" in the plan section).
 
@@ -553,6 +556,61 @@ wrong images, and it is not part of the A-vs-B judgment.
   together (up to 0.0002) and differs from full precision by up to 0.005. **The limit is now 0.01**, still 40 times
   below a wrong image's typical 0.4. The recorded races are the ground truth (replays use the recorded actions), so
   no result changes.
+
+## Step 4 results: what the AI sees (finished 2026-10-22 00:05)
+Run exactly as planned: 6 agents x 2 color sets x 100 analysis tracks, 105,000 moments. Every replay matched its record
+and every rebuilt picture gave the recorded action (largest gap 0.0015, limit 0.01). Output: `results/attention/`
+(`attention_test.md`, `focus_by_region.png`, `example_heat_maps.png`; videos in `results/attention/videos/`, not in git).
+
+**Focus** (share of the heat map in a region / share of the picture it covers; 1 = its size's worth), mean of 3 seeds:
+
+| Blur test (main) | road edge | road | off-road | car | dashboard |
+|---|---|---|---|---|---|
+| A, normal colors | 1.13 | 0.84 | 0.54 | 1.85 | 3.31 |
+| B, normal colors | 0.82 | 0.75 | 0.43 | 1.75 | 4.26 |
+| A, unseen colors | 1.16 | 1.08 | 0.48 | 2.41 | 3.89 |
+| B, unseen colors | 0.95 | 0.93 | 0.43 | 2.22 | 4.08 |
+
+Gradient check, same order: road edge 1.12 / 1.29 / 1.12 / 1.28; off-road 1.02 / 0.78 / 0.99 / 0.77; dashboard 0.88 / 1.53 / 0.82 / 1.64.
+
+**The four tests (rule written before any result):**
+1. Normal colors, road edges, B more than A? Blur: no, **the opposite** (-0.32, Holm p = 1.6e-17). Gradients: yes
+   (+0.17, p = 1.6e-17). **The methods disagree: not shown.**
+2. Unseen colors, road edges, B more than A? Blur: the opposite (-0.21, p = 2.4e-07). Gradients: yes (+0.16,
+   p = 6.0e-13). **Not shown.**
+3. Normal colors, off-road, A more than B? Blur +0.11 (p = 1.6e-17), gradients +0.24 (p = 1.6e-17). **Supported.**
+4. Unseen colors, off-road, A more than B? Blur +0.05 (p = 1.6e-08), gradients +0.22 (p = 1.6e-17). **Supported.**
+
+**What this does and does not show (plain reading):**
+- **The director's guess, half confirmed.** "A looks at the background more than B": supported, on normal and unseen
+  colors, by both methods. "B looks at the road edges more": not shown; the two methods point in opposite directions.
+  "A focuses on colors" can't be read from a map of places; Step 3 showed A breaks when only the colors change.
+- **Neither AI looks at the background much.** Off-road gets less than its size's worth of attention in the blur
+  test for both (0.43-0.54): the grass and background are 61% of the picture but get 26-35% of the heat.
+- **The surprise: both AIs lean hard on the dashboard** (the black bar at the bottom with the score, speed, wheel-spin,
+  steering and turning gauges). In the blur test it is 12.5% of the picture but gets 41-53% of the heat (3.3-4.3x
+  its size's worth), more for B than for A. The gradient check agrees for B (1.5-1.6x) but not for A (0.8-0.9x).
+  The gauges look the same in any color scheme. Likely reason (untested) that this helps B: it can lean on
+  color-free signals like its own speed and steering. Testing that would need a new experiment (e.g. hiding the
+  dashboard).
+- **The car itself** gets about 2x its size's worth in the blur test for both agents (it's tiny: 0.6% of the picture).
+- **Sanity check:** an untrained network's blur maps on the same pictures correlate 0.71 with trained A's (gradient
+  0.57). So a good part of any blur map is just "where the picture has something to blur" (edges, the car, gauges).
+  What was learned shows in the differences: the dashboard goes from 1.1x (untrained) to 3.3x (trained A seed 42),
+  the road edge from 2.1x to 1.1x.
+- The two methods agree only moderately picture by picture (rank correlation 0.24-0.37). That's common for these
+  methods, and it's why the rule demanded both agree.
+
+**Videos:** `heatmap_analysis_track20000_seed42_{normal,unseen}.mp4`: A and B side by side on the same analysis track,
+the blur-test heat map on top, 2008x864, 50 frames per second (every game frame). On unseen colors, A leaves the road at
+the first bend and the map at about 4.4 s; B drives the whole lap.
+
+**Miss (2026-10-21 23:30): the memory guard didn't watch the new jobs.** It only knew the job names from Steps 2-3,
+so it would not have stopped the heat-map job if Windows memory fell under 3 GB (it stayed above: lowest 3.9 GB).
+Fixed (it now also watches `scripts.attention*`, `scripts.make_*` and `scripts.final_test`) and restarted. Also,
+the heat-map workers no longer load PyTorch (about 400 MB less each).
+
+**Step 4 is done.**
 
 ## Step 3 again, with recipe "beta": color test results (finished 2026-10-21 03:53)
 Run as planned: the unchanged Step 3 test plan (four paired tests, Holm), final copies, the 100 analysis tracks,

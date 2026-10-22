@@ -60,7 +60,7 @@ def heat_overlay(picture, heat, top):
     h, w = picture.shape[:2]
     m = np.clip(cv2.resize(heat.astype(np.float32), (w, h), interpolation=cv2.INTER_CUBIC) / top, 0, 1)
     colors = _HEAT_LUT[(m * 255).astype(np.uint8)]
-    alpha = (0.15 + 0.7 * m)[..., None]
+    alpha = (0.85 * m ** 0.9)[..., None]          # no heat = picture unchanged
     return ((1 - alpha) * picture + alpha * colors).astype(np.uint8)
 
 
