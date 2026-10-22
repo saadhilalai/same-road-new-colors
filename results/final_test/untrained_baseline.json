@@ -1,0 +1,10 @@
+{
+  "races": 100,
+  "mean_score": -34.9,
+  "std_score": 17.5,
+  "solved_900": false,
+  "mean_track_covered_pct": 6.5,
+  "lap_completed_pct": 0.0,
+  "lap_finished_gym_pct": 0.0,
+  "off_track_pct": 0.0
+}

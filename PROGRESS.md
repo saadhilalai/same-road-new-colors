@@ -3,7 +3,7 @@
 Race-car AI that learns to drive from pixels only (Gymnasium CarRacing-v3, PPO),
 testing whether domain randomization (random colors in training) makes it robust to unseen colors.
 
-## Summary (updated 2026-10-22 00:30)
+## Summary (updated 2026-10-22 00:55)
 
 **Now (2026-10-19): retraining A and B with the new recipe "beta"** (PPO with a Beta policy and one pedal, from
 published evidence; director's OK). Code and checks are done (24/24 tests; exact resume after a hard kill).
@@ -29,6 +29,10 @@ gate decisions: `results/beta_plan/gates.md`.
   heat on 12.5% of the picture), B more than A.
 - **Step 5 done (review):** nothing broken; 24/24 code checks pass; the one-shot test script, videos, charts and
   website were all tried for real on scratch tracks first. No retraining.
+- **Step 6 done: the final test, run once on the 100 hidden tracks.** Unseen colors: **B 581.4 vs A 92.0** (+489.5,
+  better on 93 of 100 tracks, Holm p = 1.8e-16; every B seed beats every A seed). Normal colors: A 807.1, B 739.3,
+  so B pays a price of 67.8 points (significant). **The project question is answered: yes, for these agents, training
+  on random colors made the driver far more robust to colors it had never seen, at a small cost on normal colors.**
 - **Miss:** my gate script crashed after making that decision and stopped the plan for a few minutes. Fixed, tested,
   restarted; no training lost (see "Progress" in the plan section).
 
@@ -513,7 +517,7 @@ publish (README, INTERVIEW.md, privacy check of all files and history, public Gi
 - 2026-10-21 23:50: **the website follows the other projects' look** (dark scenes, Geist type, the S4D mark, Nerd mode,
   a race replay of every test track), reusing their brand files and fonts. Every number on it is read from the result
   files, so nothing is typed in by hand.
-- 2026-10-22 00:35: **the final test runs now** (plan committed in a232043, before any test-track use).
+- 2026-10-22 00:22: **the final test runs now** (plan committed in a232043, before any test-track use).
 
 ## Step 4: what the AI sees (rule written 2026-10-22 00:10, before any A-vs-B heat-map result)
 **How the heat maps are made** (`racecar/attention.py`, `racecar/attention_frames.py`):
@@ -569,6 +573,43 @@ wrong images, and it is not part of the A-vs-B judgment.
   together (up to 0.0002) and differs from full precision by up to 0.005. **The limit is now 0.01**, still 40 times
   below a wrong image's typical 0.4. The recorded races are the ground truth (replays use the recorded actions), so
   no result changes.
+
+## Step 6: the final test (run once, 2026-10-22 00:22-00:51)
+Run exactly as written in `results/final_test/TEST_PLAN.md` (committed before the test tracks were used for
+anything), by `scripts/final_test.py`, without interruption. Output: `results/final_test/color_test.md`.
+
+**Mean score on the 100 hidden test tracks** (final copies; a full lap is worth about 900):
+
+| | A normal | A unseen | B normal | B unseen |
+|---|---|---|---|---|
+| Seed 42 | **801.1** | 69.2 | 721.7 | 622.5 |
+| Seed 142 | 796.2 | 172.8 | 688.2 | 618.5 |
+| Seed 242 | **824.0** | 33.9 | **807.9** | 503.3 |
+| **Mean of seeds** | **807.1** | **92.0** | **739.3** | **581.4** |
+| Track covered | 90.6% | 20.1% | 84.0% | 69.1% |
+| Laps (strict = game's rule) | 17.3% | 1.0% | 8.0% | 7.0% |
+| Left the map | 4.0% | 19.7% | 3.7% | 17.0% |
+
+Untrained car (random actions, normal colors): -34.9, covering 6.5% of the track, never leaving the map.
+
+**The four tests** (per track, mean of 3 seeds, Wilcoxon, Holm over 4; all four significant):
+1. A, unseen minus normal: **-715.1** (95% CI -758.3 to -669.2), worse on 99 of 100 tracks; Holm p = 1.7e-17.
+2. **Main question, unseen colors, B minus A: +489.5** (95% CI +430.8 to +545.0), B better on 93 of 100 tracks;
+   Holm p = 1.8e-16.
+3. Normal colors, B minus A: **-67.8** (95% CI -100.3 to -36.8), B worse on 63 of 100 tracks; Holm p = 0.0002.
+4. B, unseen minus normal: **-157.8** (95% CI -195.9 to -119.6), worse on 79 of 100 tracks; Holm p = 8.6e-11.
+
+**Verdicts, by the rules written before the test:**
+- **Main question: "B handles unseen colors better than A on the hidden test tracks."** Proven by the paired test,
+  and every B seed (503-623) beats every A seed (34-173) on unseen colors.
+- **Price of robustness: "B pays a price on normal colors": 67.8 points** (8% of A's score).
+- The 800 pass mark (normal colors, unchanged): reached by A seed 42 (801.1), A seed 242 (824.0) and B seed 242
+  (807.9); missed by A seed 142 (796.2), B seed 42 and B seed 142. On unseen colors no seed comes close. No agent is
+  "solved" (900).
+- The test results agree with the analysis-track results of Step 3 (there: +479.7 and -41.6), on tracks no one had used.
+- Limits (stated in the plan): 3 training runs per agent; "unseen" = new schemes from B's own color formula.
+
+**Step 6 is done.**
 
 ## Step 5: review (2026-10-22 00:30; director's instruction: fix anything broken, validation tracks only)
 **What I checked:**
