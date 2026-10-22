@@ -716,7 +716,7 @@ mark are the same as in v3, but lap rules and test setups differ, so they are re
 2. Agent B keeps the same random colors. If B seed 42 still can't drive, don't stop: switch B automatically to
    Slaoui's method and carry on with the plan.
 3. Delete the old done-file at the start (it was already gone when I looked), and write a new one at
-   `logs/training_done.flag` only when this whole plan ends.
+   a done-file on the Windows side only when this whole plan ends.
 
 **What I built (all settings in config.py)**
 - **One pedal** (`racecar/envs.py`, `OnePedal`): the AI outputs steering and one pedal (above 0 = gas, below 0 = brake).

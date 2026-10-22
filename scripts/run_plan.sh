@@ -18,7 +18,7 @@
 # is checked again on them). Used once, after the gate script crashed on 2026-10-19 (PROGRESS.md).
 cd "$(dirname "$0")/.." || exit 1
 DRY=${PLAN_DRY_RUN:-}
-FLAG=${DRY:+$DRY/flag}; FLAG=${FLAG:-logs/training_done.flag}
+FLAG=${DRY:+$DRY/flag}; FLAG=${FLAG:-${PLAN_DONE_FILE:-logs/training_done.flag}}   # PLAN_DONE_FILE: put it elsewhere
 LOG=${DRY:+$DRY/plan.log}; LOG=${LOG:-logs/plan.log}
 A=beta
 FROM=${PLAN_FROM:-1}
