@@ -3,7 +3,7 @@
 Race-car AI that learns to drive from pixels only (Gymnasium CarRacing-v3, PPO),
 testing whether domain randomization (random colors in training) makes it robust to unseen colors.
 
-## Summary (updated 2026-10-22 00:10)
+## Summary (updated 2026-10-22 00:30)
 
 **Now (2026-10-19): retraining A and B with the new recipe "beta"** (PPO with a Beta policy and one pedal, from
 published evidence; director's OK). Code and checks are done (24/24 tests; exact resume after a hard kill).
@@ -27,6 +27,8 @@ gate decisions: `results/beta_plan/gates.md`.
 - **Step 4 done (what the AI sees):** A looks at the background more than B (both methods agree); "B looks at the road
   edges more" is not shown (the methods disagree). Surprise: both lean hard on the dashboard gauges (41-53% of the blur
   heat on 12.5% of the picture), B more than A.
+- **Step 5 done (review):** nothing broken; 24/24 code checks pass; the one-shot test script, videos, charts and
+  website were all tried for real on scratch tracks first. No retraining.
 - **Miss:** my gate script crashed after making that decision and stopped the plan for a few minutes. Fixed, tested,
   restarted; no training lost (see "Progress" in the plan section).
 
@@ -556,6 +558,37 @@ wrong images, and it is not part of the A-vs-B judgment.
   together (up to 0.0002) and differs from full precision by up to 0.005. **The limit is now 0.01**, still 40 times
   below a wrong image's typical 0.4. The recorded races are the ground truth (replays use the recorded actions), so
   no result changes.
+
+## Step 5: review (2026-10-22 00:30; director's instruction: fix anything broken, validation tracks only)
+**What I checked:**
+- **Code checks:** all 24 checks of `scripts/test_beta_recipe.py` pass again after this night's changes (pedal, Beta
+  math, exact recolored copies, exact replays).
+- **Hidden test tracks:** never used. `TEST_TRACKS` appears only in `config.py`; no test results exist. B's training
+  color seeds (1,000,000-1,999,999) don't overlap the test's unseen color seeds (10000-10099).
+- **All six final agents** are complete (`run_info.json` says complete, `model_final.zip` present).
+- **Software:** `requirements.txt` matches the installed packages exactly (65 packages).
+- **The one-shot final-test script, tried for real** (not with stand-ins, the lesson from the gate crash): in a
+  separate copy of the project whose `TEST_TRACKS` were 10 scratch tracks (90100-90109), so nothing could touch the real
+  test tracks or real result files. It ran all 12 evaluations plus the untrained baseline and the unchanged Step 3
+  analysis, then refused a second run and refused to run with an uncommitted change to the plan.
+- **The Step 7 and 8 tools, also tried on those scratch results:** videos (all 9, every replay matched its record),
+  charts, website data (120 races, every replay matched), and the website itself in a headless browser at desktop and
+  phone sizes (no sideways scrolling).
+
+**What I fixed (none of it touches the agents or any result):**
+- Website: the hero animation crashed on its first frame (a timing value could be slightly negative); a resized window
+  erased the hero drawing; one text said "of 100 tracks" instead of the real count; A's and B's cars looked alike
+  (now white and violet, with name tags). README preview GIFs were 11 MB each, now about 3 MB.
+- The memory guard now watches every new kind of job (Step 4 miss, above).
+
+**What I did not change, and why:**
+- **No retraining.** Nothing is broken: the agents work as trained and every result reproduces exactly. Their weak
+  spot, missing a few road tiles so the game doesn't end the race early, is a result to report, not a bug. Changing
+  the agents now, after seeing analysis results, would also be tuning on the analysis tracks.
+- The game's own "lap finished" rule never triggers (the start tile counts as touched from the first moment), so the
+  two lap columns are always equal. Both are kept, as the project's definitions require, with this explained.
+
+**Step 5 is done. Next: the final test (Step 6), with the plan committed first (`results/final_test/TEST_PLAN.md`).**
 
 ## Step 4 results: what the AI sees (finished 2026-10-22 00:05)
 Run exactly as planned: 6 agents x 2 color sets x 100 analysis tracks, 105,000 moments. Every replay matched its record
