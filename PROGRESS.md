@@ -542,6 +542,13 @@ publish (README, INTERVIEW.md, privacy check of all files and history, public Gi
 - Limits, stated now: a heat map shows what the decision is sensitive to, not what the AI "thinks". The blur result
   depends on the patch size.
 
+**Miss (2026-10-22 00:30): my check limit was too tight.** The first run stopped because one rebuilt image gave an
+action 0.00012 away from the recorded one, above the 0.0001 I had written. Measured on 2,164 moments (A seed 42 normal,
+B seed 142 unseen): right images differ by 0.0000002 typically and 0.00019 at most (GPU rounding: evaluation ran 8
+races in one batch, here the batch is different); deliberately wrong images (the two stacked frames swapped, or 5
+decisions off) differ by about 0.4, and 99% of them by more than 0.001. **The limit is now 0.001.** It still catches
+wrong images, and it is not part of the A-vs-B judgment.
+
 ## Step 3 again, with recipe "beta": color test results (finished 2026-10-21 03:53)
 Run as planned: the unchanged Step 3 test plan (four paired tests, Holm), final copies, the 100 analysis tracks,
 the same color seeds as before. Output: `results/step3_beta/color_test.md`, chart `results/step3_beta/normal_vs_unseen.png`.
