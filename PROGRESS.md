@@ -503,6 +503,17 @@ publish (README, INTERVIEW.md, privacy check of all files and history, public Gi
 - 2026-10-21 23:10: publishing needs logins this computer doesn't have for the terminal (GitHub and Hugging Face).
   Reading the saved Windows login was blocked as unsafe, which is correct. So the director logs in once
   (`gh auth login`, `hf auth login`). Everything else goes ahead meanwhile; publishing comes last.
+- 2026-10-21 23:40: **the untrained-car baseline picks random actions** from its starting policy (random seed 0).
+  Reason: an untrained AI's *best* action is to stand still (its checkpoint-0 checks scored about -93 because it never
+  moved), so "the untrained car" is shown as it really behaves when training starts.
+- 2026-10-21 23:45: **which test races become videos is fixed in the test plan, before the test** (e.g. the A-vs-B clip
+  uses the track with the median B-minus-A gap, not the most flattering one). Reason: no picking after seeing results.
+- 2026-10-21 23:50: **repository name `same-road-new-colors`** (GitHub `saadhilalai`, Space on `s4dAi`). Reason: says
+  what the experiment is, in the style of the other projects ("landfall", "walk-before-you-climb").
+- 2026-10-21 23:50: **the website follows the other projects' look** (dark scenes, Geist type, the S4D mark, Nerd mode,
+  a race replay of every test track), reusing their brand files and fonts. Every number on it is read from the result
+  files, so nothing is typed in by hand.
+- 2026-10-22 00:35: **the final test runs now** (plan committed in a232043, before any test-track use).
 
 ## Step 4: what the AI sees (rule written 2026-10-22 00:10, before any A-vs-B heat-map result)
 **How the heat maps are made** (`racecar/attention.py`, `racecar/attention_frames.py`):
