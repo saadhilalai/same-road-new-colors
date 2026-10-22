@@ -2,7 +2,9 @@
 Evaluation: run a trained AI on an exact list of (track seed, color seed) races,
 several simulators in parallel, and return one result row per race.
 
-The AI always picks its single best action (deterministic=True): no random exploration.
+The AI picks its single best action (deterministic=True): no random exploration. The one exception is the
+untrained-car baseline of the final test (sampled=True): an untrained AI's best action is to stand still, so it
+is shown as it really starts training, picking random actions from its starting policy (fixed random seed).
 """
 
 import numpy as np
@@ -33,7 +35,7 @@ def episode_record(info):
     }
 
 
-def evaluate(model, episodes, venv=None, continuous=True, grayscale=False, record_actions=False):
+def evaluate(model, episodes, venv=None, continuous=True, grayscale=False, record_actions=False, sampled=False):
     """
     episodes: list of (track_seed, color_seed); color_seed None = normal colors.
     venv: an evaluation env from build_eval_vec_env (reused during training); built here if None.
@@ -53,12 +55,14 @@ def evaluate(model, episodes, venv=None, continuous=True, grayscale=False, recor
         venv.env_method("set_schedule", episodes[i::n], indices=[i])
     pending = {(t, NORMAL if c is None else c) for t, c in episodes}
 
+    if sampled:
+        torch.manual_seed(0)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
     rows, actions, current = [], {}, [[] for _ in range(n)]
     obs = venv.reset()
     while pending:
-        act, _ = model.predict(obs, deterministic=True)
+        act, _ = model.predict(obs, deterministic=not sampled)
         obs, _, dones, infos = venv.step(act)
         game_act = one_pedal_to_game(act) if view["one_pedal"] else act
         for i in range(n):

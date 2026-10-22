@@ -68,13 +68,14 @@ def main():
     p.add_argument("--out-dir", required=True)
     p.add_argument("--recipe-a", choices=config.ALL_RECIPES, default=config.RECIPE)
     p.add_argument("--recipe-b", choices=config.ALL_RECIPES, default=config.RECIPE)
+    p.add_argument("--title", default="Step 3 color test", help="report heading (labels only; the analysis is fixed)")
     args = p.parse_args()
     recipes = {"A": args.recipe_a, "B": args.recipe_b}
     out = config.PROJECT_ROOT / args.out_dir
     out.mkdir(parents=True, exist_ok=True)
 
     data = {(a, c): load(a, c, args.tracks, recipes[a]) for a in config.AGENTS for c in ("normal", "unseen")}
-    lines = [f"# Step 3 color test ({args.tracks} tracks, final copies, recipes: A '{args.recipe_a}', "
+    lines = [f"# {args.title} ({args.tracks} tracks, final copies, recipes: A '{args.recipe_a}', "
              f"B '{args.recipe_b}')", ""]
 
     # Per seed and mean of seeds, every metric
@@ -130,10 +131,10 @@ def main():
     (out / "color_test.md").write_text("\n".join(lines) + "\n")
     (out / "color_test.json").write_text(json.dumps({"tests": results, "table": table.to_dict("records")}, indent=2, default=str))
     print("\n".join(lines))
-    slope_chart(table, out / "normal_vs_unseen.png")
+    slope_chart(table, out / "normal_vs_unseen.png", args.tracks)
 
 
-def slope_chart(table, path):
+def slope_chart(table, path, track_set="analysis"):
     """Mean score with normal vs unseen colors: thin lines = seeds, thick line = mean of seeds."""
     fig, ax = plt.subplots(figsize=(6.5, 5.6))
     xs = {"normal": 0, "unseen": 1}
@@ -164,7 +165,7 @@ def slope_chart(table, path):
     ax.text(0.5, config.SOLVED_SCORE + 10, "solved (900)", color=plot_style.INK_SECONDARY, fontsize=9, ha="center")
     ax.set_xticks([0, 1], ["normal colors", "unseen colors"])
     ax.set_xlim(-0.4, 1.4)
-    ax.set_ylabel("Mean score (100 analysis tracks)")
+    ax.set_ylabel(f"Mean score (100 {track_set} tracks)")
     ax.set_title("Normal vs unseen colors (thin lines: single seeds)", loc="left", fontsize=12)
     fig.legend(loc="lower center", ncol=2, fontsize=9)
     fig.tight_layout(rect=(0, 0.06, 1, 1))
