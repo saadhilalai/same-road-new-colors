@@ -499,6 +499,49 @@ publish (README, INTERVIEW.md, privacy check of all files and history, public Gi
   Reading the saved Windows login was blocked as unsafe, which is correct. So the director logs in once
   (`gh auth login`, `hf auth login`). Everything else goes ahead meanwhile; publishing comes last.
 
+## Step 4: what the AI sees (rule written 2026-10-22 00:10, before any A-vs-B heat-map result)
+**How the heat maps are made** (`racecar/attention.py`, `racecar/attention_frames.py`):
+- The AI's exact images are rebuilt by replaying the recorded races. Checked on test races: the replay matches the
+  recorded score, and the AI's action on the rebuilt images matches the recorded action (largest difference 0.00003,
+  GPU rounding).
+- **Blur test (main; Greydanus et al. 2018):** blur one small round patch of the AI's 64x64 view at a time (patch size
+  sigma 4 pixels, one every 4 pixels = 256 patches, blur sigma 3; Greydanus's settings scaled from 84x84) and measure how much
+  the best action [steer, pedal] changes. **Gradients (check):** how strongly a tiny change to each pixel would move
+  the action (|d steer/d pixel| + |d pedal/d pixel|, added up over the 6 color channels of the 2 stacked images).
+- **Regions**, from drawing the same moment again in flat colors (works in any color scheme):
+  road edge (within 2 pixels of the road's border in the AI's view, either side, plus kerbs), road (the rest of the
+  road), off-road (grass, background, outside the map), the car, the dashboard (the black bar at the bottom).
+  Typical areas: edge 11%, road 14%, off-road 61%, car 0.6%, dashboard 12.5%.
+
+**Decisions** (safe, standard choices):
+- Blur settings: Greydanus et al.'s, scaled to our image size. Reason: the standard method for game-playing AIs.
+- Moments: every 5th decision, skipping the first second (the camera zooms in then). Reason: enough moments per race
+  (up to 95) at low cost; neighboring decisions are nearly identical.
+- **Measure "focus" = share of heat in a region / share of the image the region covers** (both averaged over the race's
+  moments). 1 = the region gets exactly its size's worth of attention; 2 = twice that. Reason: A spends most of its
+  unseen-color races on grass, so its images contain more off-road area; dividing by area keeps that from deciding
+  the result by itself. The plain shares are reported too.
+
+**Judging rule (fixed now):**
+- Agents: final copies of A and B (recipe beta), seeds 42, 142, 242. Races: the 100 analysis tracks, normal and unseen
+  colors (the Step 3 races, replayed exactly). Every replay must match its recorded result and every rebuilt image must
+  give the recorded action (within 0.0001), otherwise the code is broken: stop and fix.
+- Per track: mean over the 3 seeds. Pairs: same track, same colors. Races with no moment sampled (shorter than about
+  1 second) are left out, and a track with no data for an agent drops out of that test.
+- **Four tests per method** (Wilcoxon, two-sided, Holm over the 4):
+  1. normal colors, road-edge focus, B minus A; 2. unseen colors, road-edge focus, B minus A;
+  3. normal colors, off-road focus, A minus B; 4. unseen colors, off-road focus, A minus B.
+- **Verdict per test:** "supported" only if the blur test AND the gradient check are both significant (Holm p < 0.05)
+  in the guessed direction. "Opposite" if both are significant the other way. Otherwise "not shown".
+- The director's guess "A focuses on colors or background, B on the road edges": "B looks at road edges more" needs
+  tests 1 and 2; "A looks at the background more" needs tests 3 and 4. "Colors" can't be read from a map of places
+  (it shows where, not which color); how much each agent depends on colors is what Step 3 measured.
+- Also reported, without tests: dashboard, road and car focus; how well the two methods agree; and a sanity check
+  (Adebayo et al. 2018): the untrained network (A seed 42, checkpoint 0) on the same images. If the maps only traced
+  image edges, the untrained network would give the same maps.
+- Limits, stated now: a heat map shows what the decision is sensitive to, not what the AI "thinks". The blur result
+  depends on the patch size.
+
 ## Step 3 again, with recipe "beta": color test results (finished 2026-10-21 03:53)
 Run as planned: the unchanged Step 3 test plan (four paired tests, Holm), final copies, the 100 analysis tracks,
 the same color seeds as before. Output: `results/step3_beta/color_test.md`, chart `results/step3_beta/normal_vs_unseen.png`.

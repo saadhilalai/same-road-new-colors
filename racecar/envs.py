@@ -106,6 +106,24 @@ class TwoSeedCarRacing(CarRacing):
         finally:
             self.road_color, self.bg_color, self.grass_color, self.road_poly, self.reward = saved
 
+    def render_labels(self, road, kerb, off_road, draw_car=True):
+        """
+        Step 4 (heat maps): the current moment drawn again with flat colors per kind of surface: road tiles, kerbs
+        (the red/white stripes in bends) and everything off the road (background and grass), optionally without
+        the car. Same image size and geometry as the observation; the game itself is untouched.
+        """
+        saved = self.road_color, self.bg_color, self.grass_color, self.road_poly, self.reward, self.car.draw
+        self.reward = self._reward_shown
+        self.road_poly = [(poly, np.array(road, float) if isinstance(color, np.ndarray) else tuple(kerb))
+                          for poly, color in self.road_poly]
+        self.road_color, self.bg_color, self.grass_color = (np.array(c, float) for c in (road, off_road, off_road))
+        if not draw_car:
+            self.car.draw = lambda *args, **kwargs: None
+        try:
+            return self._render("state_pixels")
+        finally:
+            self.road_color, self.bg_color, self.grass_color, self.road_poly, self.reward, self.car.draw = saved
+
     def _render(self, mode):
         if mode == "state_pixels":
             self._reward_shown = self.reward   # the score printed on this image (see render_in_colors)
