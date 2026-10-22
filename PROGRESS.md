@@ -3,7 +3,7 @@
 Race-car AI that learns to drive from pixels only (Gymnasium CarRacing-v3, PPO),
 testing whether domain randomization (random colors in training) makes it robust to unseen colors.
 
-## Summary (updated 2026-10-22 01:30)
+## Summary (updated 2026-10-22 01:30, all but publishing done)
 
 **Now (2026-10-19): retraining A and B with the new recipe "beta"** (PPO with a Beta policy and one pedal, from
 published evidence; director's OK). Code and checks are done (24/24 tests; exact resume after a hard kill).
@@ -33,9 +33,13 @@ gate decisions: `results/beta_plan/gates.md`.
   better on 93 of 100 tracks, Holm p = 1.7e-16; every B seed beats every A seed). Normal colors: A 807.1, B 739.3,
   so B pays a price of 67.8 points (significant). **The project question is answered: yes, for these agents, training
   on random colors made the driver far more robust to colors it had never seen, at a small cost on normal colors.**
-- **Step 7 done:** charts, 9 test-race videos (all replay-checked), README GIFs. **Step 8:** README, INTERVIEW.md,
-  cleaned models, the website and its data are done; the privacy check and publishing come last (publishing needs the
-  director's GitHub and Hugging Face logins).
+- **Step 7 done:** charts, 9 test-race videos (all replay-checked), README GIFs.
+- **Step 8: everything except publishing is done.** README, INTERVIEW.md, resume bullets, cleaned models, the website
+  and its data; the privacy check of every file and the whole history (rewritten: 776 file versions and 63 commit
+  messages scanned, 0 hits; a backup of the old history is kept outside the repo, on this PC only).
+- **Waiting for the director:** publishing needs GitHub and Hugging Face logins, which this computer's terminal doesn't
+  have (`gh auth login`, `hf auth login`). Then: public repo `saadhilalai/same-road-new-colors` with About text and
+  topics, the Space `s4dAi/same-road-new-colors`, and the done-file.
 - **Miss:** my gate script crashed after making that decision and stopped the plan for a few minutes. Fixed, tested,
   restarted; no training lost (see "Progress" in the plan section).
 
