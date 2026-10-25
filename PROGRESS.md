@@ -3,7 +3,7 @@
 Race-car AI that learns to drive from pixels only (Gymnasium CarRacing-v3, PPO),
 testing whether domain randomization (random colors in training) makes it robust to unseen colors.
 
-## Summary (updated 2026-10-22 01:30, all but publishing done)
+## Summary (updated 2026-10-25, all steps done and published)
 
 **Now (2026-10-19): retraining A and B with the new recipe "beta"** (PPO with a Beta policy and one pedal, from
 published evidence; director's OK). Code and checks are done (24/24 tests; exact resume after a hard kill).
@@ -37,9 +37,14 @@ gate decisions: `results/beta_plan/gates.md`.
 - **Step 8: everything except publishing is done.** README, INTERVIEW.md, resume bullets, cleaned models, the website
   and its data; the privacy check of every file and the whole history (rewritten: 776 file versions and 63 commit
   messages scanned, 0 hits; a backup of the old history is kept outside the repo, on this PC only).
-- **Waiting for the director:** publishing needs GitHub and Hugging Face logins, which this computer's terminal doesn't
-  have (`gh auth login`, `hf auth login`). Then: public repo `saadhilalai/same-road-new-colors` with About text and
-  topics, the Space `s4dAi/same-road-new-colors`, and the done-file.
+- **Published (2026-10-25)**, after the director logged in:
+  - Code: https://github.com/saadhilalai/same-road-new-colors (public, with About text, website link and 9 topics;
+    65 commits, every one by "Saad Hilal" with the no-reply email).
+  - Website: https://s4dai-same-road-new-colors.static.hf.space (Hugging Face Space `s4dAi/same-road-new-colors`).
+    Checked live in a headless browser at desktop and phone sizes: no errors, no failed requests, no sideways
+    scrolling, the real numbers, all 100 test tracks in the race.
+  - Just before pushing, the privacy scan ran again over every file version in the history (779) and every commit
+    message (65): 0 hits.
 - **Miss:** my gate script crashed after making that decision and stopped the plan for a few minutes. Fixed, tested,
   restarted; no training lost (see "Progress" in the plan section).
 
